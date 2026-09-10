@@ -147,6 +147,7 @@ vi.mock("@opennextjs/cloudflare", () => ({
 
 import {
 	UserConflictError,
+	authenticateUser,
 	createUser,
 	deleteUser,
 	getUserById,
@@ -269,5 +270,18 @@ describe("user service", () => {
 		await deleteUser(created.id);
 		await expect(getUserById(created.id)).resolves.toBeNull();
 		await expect(getUserByUsername("ada")).resolves.toBeNull();
+	});
+
+	it("authenticateUser returns the public user for a matching digest", async () => {
+		const created = await createUser(ada);
+		const authenticated = await authenticateUser("ada", CLIENT_DIGEST);
+		expect(authenticated).toEqual(created);
+		expect(authenticated).not.toHaveProperty("password_hash");
+	});
+
+	it("authenticateUser returns null for an unknown user or wrong digest", async () => {
+		await createUser(ada);
+		await expect(authenticateUser("missing", CLIENT_DIGEST)).resolves.toBeNull();
+		await expect(authenticateUser("ada", "d".repeat(64))).resolves.toBeNull();
 	});
 });

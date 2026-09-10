@@ -2,7 +2,7 @@ import "server-only";
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { z } from "zod";
-import { hashPassword } from "@/lib/password-server";
+import { hashPassword, verifyPassword } from "@/lib/password-server";
 
 export type PublicUser = {
 	id: string;
@@ -161,6 +161,33 @@ export async function getUserByUsername(
 export async function getUserById(id: string): Promise<PublicUser | null> {
 	const row = await findRowById(id);
 	return row ? toPublicUser(row) : null;
+}
+
+export async function authenticateUser(
+	username: string,
+	passwordSha256: string,
+): Promise<PublicUser | null> {
+	const data = z
+		.object({
+			username: z.string().trim().min(1),
+			passwordSha256: passwordSha256Schema,
+		})
+		.parse({ username, passwordSha256 });
+
+	const row = await findFirst(
+		`SELECT ${USER_COLUMNS} FROM users WHERE username = ?1`,
+		data.username,
+	);
+	if (!row) {
+		return null;
+	}
+
+	const matches = await verifyPassword(
+		data.passwordSha256,
+		row.password_salt,
+		row.password_hash,
+	);
+	return matches ? toPublicUser(row) : null;
 }
 
 async function findRowById(id: string): Promise<UserRow | undefined> {

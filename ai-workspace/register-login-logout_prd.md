@@ -368,7 +368,7 @@ Use the production PBKDF2 iteration count in tests unless the suite becomes too 
 - `src/lib/services/user-service.ts` + `user-service.test.ts`
 - Mocked D1 (or statement helper) used only in tests
 
-### Phase 3: Auth HTTP endpoints - PLANNED
+### Phase 3: Auth HTTP endpoints - COMPLETED
 
 **Objective**: Register, login, and logout are callable over HTTP, proven by calling the exported route handlers with `Request` objects.
 
@@ -403,8 +403,8 @@ Expected: tests fail because the routes do not exist or return the wrong status/
 
 #### Green — phase complete when
 
-- [ ] `npm test` passes, including all Phase 1–3 tests
-- [ ] Success JSON never includes `password`, `password_hash`, or `password_salt`
+- [x] `npm test` passes, including all Phase 1–3 tests (34 passed)
+- [x] Success JSON never includes `password`, `password_hash`, or `password_salt`
 
 **Deliverables**:
 - `src/app/api/auth/register/route.ts` + `route.test.ts`
@@ -496,7 +496,9 @@ This phase does **not** add a new red test list. It is the integration gate: all
 - `src/lib/db/users-schema.test.ts` — migration contract (Phase 1)
 - `src/lib/password.ts` / `password.test.ts` — SHA-256 hex for the browser
 - `src/lib/password-server.ts` / `password-server.test.ts` — generate salt, PBKDF2 derive, verify
-- `src/lib/services/user-service.ts` / `user-service.test.ts` — create / update / delete / find; only this module talks to `env.DB`
+- `src/lib/services/user-service.ts` / `user-service.test.ts` — create / update / delete / find / `authenticateUser`; only this module talks to `env.DB`
+- `src/lib/auth-schemas.ts` — Zod bodies for register and login
+- `src/lib/http.ts` — JSON error helper
 - `src/app/api/auth/register/route.ts` / `route.test.ts`
 - `src/app/api/auth/login/route.ts` / `route.test.ts`
 - `src/app/api/auth/logout/route.ts` / `route.test.ts`
@@ -549,7 +551,7 @@ type CreateUserInput = {
   passwordSha256: string;
 };
 
-// createUser, updateUser, deleteUser, getUserByUsername, getUserById
+// createUser, updateUser, deleteUser, getUserByUsername, getUserById, authenticateUser
 ```
 
 `updateUser` and `deleteUser` are required on the service even though no HTTP route calls them yet.
@@ -590,19 +592,19 @@ D1 is a Cloudflare resource, not an npm package. Phase 1 binds `DB` to database 
 
 ## Acceptance Criteria
 
-- [ ] A teacher can register with first name, last name, username, email, and password and receive 201 plus a public user object
-- [ ] The plaintext password is never written to D1; `password_hash` and `password_salt` are populated
+- [x] A teacher can register with first name, last name, username, email, and password and receive 201 plus a public user object
+- [x] The plaintext password is never written to D1; `password_hash` and `password_salt` are populated
 - [ ] The register and login requests send a SHA-256 hex digest, not the plaintext password
 - [ ] Username and email may be the same string; both columns still exist and both are unique across users
-- [ ] A second register with the same username or email is rejected (409)
-- [ ] A teacher can log in with username + password and receive 200 plus the public user object
-- [ ] Wrong username or password returns 401 with a generic message
+- [x] A second register with the same username or email is rejected (409)
+- [x] A teacher can log in with username + password and receive 200 plus the public user object
+- [x] Wrong username or password returns 401 with a generic message
 - [ ] Successful register and successful login both land the teacher on `/mcqs`
 - [ ] `/mcqs` is a stub (copy + logout only), not an MCQ editor
 - [ ] Logout calls `POST /api/auth/logout` and then shows `/login`
-- [ ] API success bodies never include `password`, `password_hash`, or `password_salt`
+- [x] API success bodies never include `password`, `password_hash`, or `password_salt`
 - [x] User service exposes create, update, and delete even if only create is used by HTTP in this phase
-- [ ] No cookies, tokens, or session records are introduced
+- [x] No cookies, tokens, or session records are introduced
 - [ ] Each implementation phase was built test-first (tests written and failing before production code)
 - [ ] `npm test` (Vitest) passes for the whole suite
 - [ ] `npm run lint` and `npm run build` succeed
@@ -746,7 +748,7 @@ When working with this PRD:
 10. Vitest, `zod`, and `server-only` are already installed. Ask before adding any other dependency
 11. Never run `npm run deploy` or `d1 migrations apply` with `--remote`
 12. Do not add cookies, JWTs, NextAuth, or middleware auth in this phase
-13. Phase 2 landed the user service and password hashing; keep AGENTS.md current as later phases add HTTP and UI
+13. Phase 3 landed the auth HTTP endpoints; keep AGENTS.md current as later phases add UI
 14. Follow `.cursor/skills/testing/SKILL.md` for Vitest setup, mocking, and what makes a test worth writing
 15. Stop at the end of each phase for user review. Commit and push that phase to `feature/register-login-logout`
 
@@ -755,6 +757,6 @@ When working with this PRD:
 ## Current Status
 
 **Last Updated**: 2026-09-10
-**Current Phase**: Phase 2 - User service and password hashing
+**Current Phase**: Phase 3 - Auth HTTP endpoints
 **Status**: COMPLETED — stopped for review
-**Next Steps**: After review, start Phase 3 (auth HTTP endpoints) test-first. Do not start MCQ authoring.
+**Next Steps**: After review, start Phase 4 (auth UI and MCQ stub) test-first. Do not start MCQ authoring.
