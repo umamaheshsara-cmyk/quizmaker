@@ -27,7 +27,10 @@ The `/mcqs` dashboard loads the list in a Server Component (`force-dynamic`)
 and passes `initialMcqs` into `McqList`. Do not fetch `/api/mcqs` from the
 client or `setState` in `useEffect` to hydrate the table. Row actions are
 Preview (dialog), Edit (`/mcqs/[id]/edit`), and Delete (confirm dialog).
-Create Question goes to `/mcqs/new`. Logout stays `POST /api/auth/logout`.
+Create Question goes to `/mcqs/new`. New/Edit forms use a Question textarea
+(stored as `prompt`), four choices A–D, radios for exactly one correct,
+Save/Cancel, and a Saving status. Do not add 2–6 choice UI or a description
+column. Logout stays `POST /api/auth/logout`.
 
 ## Validation
 

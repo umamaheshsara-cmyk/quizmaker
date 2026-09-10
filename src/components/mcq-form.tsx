@@ -9,7 +9,8 @@ import {
 	updateMcqAction,
 } from "@/app/mcqs/actions";
 import type { McqCorrect, PublicMcq } from "@/lib/mcq-schemas";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -26,6 +27,9 @@ import {
 import { Input } from "@/components/ui/input";
 
 const LETTERS = ["A", "B", "C", "D"] as const;
+
+const textareaClassName =
+	"min-h-20 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40";
 
 type McqFormProps = {
 	mode: "create" | "edit";
@@ -60,7 +64,7 @@ function validate(values: {
 	const choiceD = values.choiceD.trim();
 
 	if (!prompt) {
-		errors.prompt = "Prompt is required";
+		errors.prompt = "Question is required";
 	}
 	if (!choiceA) {
 		errors.choiceA = "Choice A is required";
@@ -82,6 +86,14 @@ function validate(values: {
 		errors.choices = "Choices must be unique";
 	}
 	return errors;
+}
+
+export function McqFormFallback() {
+	return (
+		<p className="text-muted-foreground" role="status">
+			Loading question…
+		</p>
+	);
 }
 
 export function McqForm({
@@ -159,8 +171,8 @@ export function McqForm({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>
-					{mode === "create" ? "Add a question" : "Edit question"}
+				<CardTitle role="heading" aria-level={2}>
+					{mode === "create" ? "New Question" : "Edit Question"}
 				</CardTitle>
 				<CardDescription>
 					Four choices, one correct answer. This bank is shared with every
@@ -171,9 +183,10 @@ export function McqForm({
 				<form onSubmit={onSubmit} noValidate>
 					<FieldGroup>
 						<Field data-invalid={Boolean(fieldErrors.prompt) || undefined}>
-							<FieldLabel htmlFor="prompt">Prompt</FieldLabel>
-							<Input
-								id="prompt"
+							<FieldLabel htmlFor="question">Question</FieldLabel>
+							<textarea
+								id="question"
+								className={cn(textareaClassName)}
 								value={prompt}
 								onChange={(event) => setPrompt(event.target.value)}
 							/>
@@ -255,9 +268,22 @@ export function McqForm({
 							{formError ? (
 								<FieldError errors={[{ message: formError }]} />
 							) : null}
-							<Button type="submit" disabled={pending}>
-								Save question
-							</Button>
+							{pending ? (
+								<p className="text-muted-foreground" role="status">
+									Saving…
+								</p>
+							) : null}
+							<div className="flex flex-wrap gap-2">
+								<Button type="submit" disabled={pending}>
+									Save
+								</Button>
+								<Link
+									href="/mcqs"
+									className={buttonVariants({ variant: "outline" })}
+								>
+									Cancel
+								</Link>
+							</div>
 						</Field>
 					</FieldGroup>
 				</form>

@@ -4,7 +4,7 @@ Date last modified: 2026-09-10
 # MCQ CRUD - Technical PRD
 
 **Branch:** `feature/register-login-logout` (MCQ work is currently on this branch; move to `feature/mcq-crud` if the user asks)
-**Status:** Phase 5 COMPLETED
+**Status:** Phase 6 COMPLETED
 
 This document is the source of truth for the shared multiple-choice question bank. Auth remains specified by `ai-workspace/register-login-logout_prd.md` and `.cursor/rules/auth.mdc`. Do not change hashing, sessions, or auth routes unless this PRD is explicitly updated.
 
@@ -12,7 +12,7 @@ This document is the source of truth for the shared multiple-choice question ban
 
 ## Overview/Problem
 
-Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`. Phases 2–5 shipped the shared four-choice bank: D1-backed service, JSON API, Server Actions, create/edit forms, and a dashboard list with Preview, Edit, and Delete.
+Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`. Phases 2–6 shipped the shared four-choice bank: D1-backed service, JSON API, Server Actions, dashboard list, and New/Edit question forms.
 
 This slice is the working test-bank: four-choice questions that any teacher who can open the page can add, browse, update, and remove.
 
@@ -249,28 +249,30 @@ Keep auth pages unchanged. Keep `/` → `/login`.
 
 #### Create (`/mcqs/new`)
 
-- Card form: prompt (textarea or input), choices A–D, correct answer (four radios or a select — radios preferred so all options stay visible)
-- Submit POSTs JSON to `/api/mcqs` (no password hashing)
-- 201 → navigate to `/mcqs`
-- 400 → show the API error (and client-side field errors for blanks / duplicate choices / missing correct)
-- Link or button back to `/mcqs`
+- Card titled **New Question**: Question stem (textarea, stored as `prompt`), choices A–D, correct answer (four radios so all options stay visible)
+- Form helper copy (CardDescription) explains the shared four-choice bank. There is **no stored description/explanation field**
+- Submit calls `createMcqAction` (no password hashing, no `fetch` to `/api/mcqs`)
+- Success → navigate to `/mcqs`
+- Validation / action errors stay on the form
+- **Save** and **Cancel** (Cancel → `/mcqs`); `role="status"` Saving… while the action is in flight
+- Link back to `/mcqs`
 - Logout not required on this page but a back link is required
 
-**Client validation before POST:** same rules as Zod (trimmed non-empty, distinct choices, correct selected).
+**Client validation before save:** same rules as Zod (trimmed non-empty Question, distinct A–D, exactly one correct selected). Always four choices; no add/remove.
 
 #### Edit (`/mcqs/[id]/edit`)
 
-- Same fields as create, pre-filled from `GET /api/mcqs/[id]`
-- Submit PUT `/api/mcqs/[id]`
-- 200 → `/mcqs`
+- Same fields as create, titled **Edit Question**, pre-filled from `getMcqAction`
+- Submit `updateMcqAction`
+- Success → `/mcqs`
 - 404 → message and a way back to the list
-- 400 → field / form errors
+- Loading: `Suspense` fallback (`McqFormFallback`); page is `force-dynamic`
 
 ---
 
 ## Implementation Phases
 
-Each of Phases 1–5 is a TDD loop (Phase 5 also records lint). This PRD has **no Phase 6**. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
+Each of Phases 1–6 is a TDD loop. This PRD has **no Phase 7**. Variable choice counts (2–6), stored descriptions/explanations, and quizzes stay out of scope. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
 
 ### Phase 1: Database Foundation - PLANNED
 
@@ -483,6 +485,43 @@ First run after those tests: Create Question / Preview / loading failed (link st
 - `src/app/mcqs/page.tsx` — `Suspense` + server-loaded `McqBank`
 - Updated `mcq-list.test.tsx`
 
+### Phase 6: Create/Edit MCQ - COMPLETED
+
+**Objective:** `/mcqs/new` and `/mcqs/[id]/edit` are complete teacher flows: Question stem, four choices, exactly one correct, validation, Save/Cancel, loading, and errors. Auth and the four-column schema stay as Phases 1–5.
+
+Do not redo Phases 1–5. Do not start Phase 7. No new dependencies.
+
+**TDD gate:** Phase 6 is not complete until the new form tests are green and `npm test` / `npm run lint` exit 0.
+
+#### Red — write these tests first (`src/components/mcq-form.test.tsx`)
+
+- Titles: New Question / Edit Question
+- Question label (maps to `prompt`); A–D; no Add/Remove choice
+- Cancel → `/mcqs`
+- Exactly one correct radio
+- Saving `role="status"` while `createMcqAction` is in flight; Save disabled
+- Existing empty-field, duplicate-choice, create/update, and 404 cases stay green (Save button name is **Save**)
+
+First run: 10 failed (titles still “Add a question”, label still Prompt, no Cancel, Save still “Save question”).
+
+#### Implement
+
+1. `McqForm`: New/Edit titles, Question textarea, Save + Cancel, Saving… status
+2. Edit page: `Suspense` + `McqFormFallback`, `force-dynamic`
+3. Keep four radios A–D. Do not add a description column or 2–6 choice UI
+
+#### Green — phase complete when
+
+- [x] `src/components/mcq-form.test.tsx` — **12 passed**
+- [x] `npm test` — **16 files, 109 passed** (exit 0)
+- [x] `npm run lint` — **exit 0**
+- [x] No `react-hook-form`, no new dependencies, no 2–6 choice schema change
+
+**Deliverables:**
+
+- `src/components/mcq-form.tsx` + `mcq-form.test.tsx`
+- `src/app/mcqs/new/page.tsx`, `src/app/mcqs/[id]/edit/page.tsx`
+
 ---
 
 ## Technical Implementation Details
@@ -516,10 +555,10 @@ Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file (t
 | `src/app/api/mcqs/[id]/route.ts` | GET/PUT/DELETE one | **Phase 3 done** |
 | `src/app/mcqs/actions.ts` | Server Actions | **Phase 4 done** |
 | `src/components/mcq-list.tsx` | Dashboard list, Preview, Create Question, loading | **Phase 5 done** |
-| `src/components/mcq-form.tsx` | Create/edit form | **Phase 4 done** |
+| `src/components/mcq-form.tsx` | Create/edit form (New/Edit, Save/Cancel) | **Phase 6 done** |
 | `src/app/mcqs/page.tsx` | Bank list + logout + Suspense | **Phase 5 done** |
-| `src/app/mcqs/new/page.tsx` | Create | **Phase 4 done** |
-| `src/app/mcqs/[id]/edit/page.tsx` | Edit | **Phase 4 done** |
+| `src/app/mcqs/new/page.tsx` | Create | **Phase 6 done** |
+| `src/app/mcqs/[id]/edit/page.tsx` | Edit + Suspense | **Phase 6 done** |
 | `.cursor/rules/mcq.mdc` | Conventions | **Phase 4 done** |
 
 Reuse: `src/lib/http.ts` (`jsonError`), `src/components/logout-button.tsx`, shadcn table/dialog/field.
@@ -727,8 +766,8 @@ Add entries here when bugs are found and fixed during implementation.
 When working with this PRD:
 
 1. Read Problem, Hypothesis, and Scope (In/Out/Cut) before writing code
-2. **TDD is mandatory** for Phases 1–5: listed tests, `npm test` (red), implement, `npm test` (green)
-3. Implement **only the current phase**. Phase 5 (dashboard list) is done. This PRD has no Phase 6 — do not invent quizzes, ownership, or a separate preview route unless a new PRD asks.
+2. **TDD is mandatory** for Phases 1–6: listed tests, `npm test` (red), implement, `npm test` (green)
+3. Implement **only the current phase**. Phase 6 (create/edit polish) is done. This PRD has no Phase 7 — do not invent quizzes, 2–6 choices, stored descriptions, or ownership unless a new PRD asks.
 4. Update phase status markers and this Current Status section as work progresses
 5. Add implementation details under Technical Implementation Details as code is written (filenames, commit hashes)
 6. Mark acceptance criteria as complete when features work
@@ -741,16 +780,35 @@ When working with this PRD:
 13. Do not change auth hashing, `users`, or `/api/auth/*`
 14. Follow `.cursor/skills/testing/SKILL.md`, `.cursor/rules/d1.mdc`, `.cursor/rules/auth.mdc`, and `.cursor/rules/nextjs.mdc`
 15. Windows: `npm.cmd` / `npx.cmd`
-16. After each phase, stop for review if the user asked to review per phase. Phase 5 is complete. Do not start unlisted work.
+16. After each phase, stop for review if the user asked to review per phase. Phase 6 is complete. Do not start unlisted work.
 
 ---
 
 ## Current Status
 
 **Last Updated:** 2026-09-10
-**Current Phase:** Phase 5 - Dashboard MCQ List
+**Current Phase:** Phase 6 - Create/Edit MCQ
 **Status:** COMPLETED
-**Next Steps:** This PRD has no Phase 6. Do not add sessions, ownership, or quiz-taking. A real browser / `npm run preview` pass is still outstanding if the user wants it.
+**Next Steps:** This PRD has no Phase 7. Do not add 2–6 choices, stored descriptions, sessions, or quiz-taking.
+
+**Phase 6 evidence**
+- Red: 10 form tests failed (titles, Question label, Cancel, Save name, saving status)
+- Green: `mcq-form.test.tsx` — **12 passed**; `npm test` — 16 files, **109 passed** (exit 0)
+- `npm run lint` — exit 0
+- Four-choice schema and Server Actions unchanged
+- No new dependencies
+
+**Phase 6 mapping of the “Create/Edit MCQ” prompt**
+
+| Prompt item | As-built |
+|-------------|----------|
+| Question / description | Question textarea → `prompt`. No stored description (out of scope) |
+| 2–6 choices, add/remove | Always four A–D; no add/remove controls |
+| Exactly one correct | Radios named `correct` |
+| Validation | Client + Zod: required, unique choices, correct A–D |
+| Save / Cancel | Save submits the action; Cancel links to `/mcqs` |
+| Loading | Saving… on submit; edit page `Suspense` + `McqFormFallback` |
+| Errors | Field errors, action `formError`, 404 edit load |
 
 **Phase 5 evidence**
 - Red: Create Question / Preview / loading tests failed against the Phase 4 list
