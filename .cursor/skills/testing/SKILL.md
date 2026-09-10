@@ -9,10 +9,14 @@ paths:
 
 # Testing with Vitest
 
-Vitest is **not installed in this starter**. Set it up the first time tests are needed.
+Vitest **is installed**. Config lives in `vitest.config.ts`. Run `npm test` or
+`npm run test:watch`.
+
+If the harness has to be reinstalled, pin `@vitejs/plugin-react` to v4 (v6 conflicts
+with the Babel 7 tree that shadcn uses):
 
 ```bash
-npm install -D vitest @vitejs/plugin-react @testing-library/react jsdom vite-tsconfig-paths
+npm install -D vitest @vitejs/plugin-react@4 @testing-library/react @testing-library/user-event jsdom vite-tsconfig-paths
 ```
 
 Add a `vitest.config.ts` at the repo root:

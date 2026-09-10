@@ -17,7 +17,16 @@
 	},
 	"observability": {
 		"enabled": true
-	}
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "quizmaker",
+			// Placeholder for local `wrangler d1 … --local`. Replace with the
+			// UUID from `npx wrangler d1 create quizmaker` before remote use.
+			"database_id": "local-only-quizmaker"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
