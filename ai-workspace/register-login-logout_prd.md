@@ -314,7 +314,7 @@ Expected: tests fail because there is no migration (or the SQL does not match). 
 - `migrations/` SQL for `users`
 - Local database with the schema applied
 
-### Phase 2: User service and password hashing - PLANNED
+### Phase 2: User service and password hashing - COMPLETED
 
 **Objective**: All user persistence and password comparison live in one server module, proven by unit tests with a mocked D1.
 
@@ -358,9 +358,9 @@ Use the production PBKDF2 iteration count in tests unless the suite becomes too 
 
 #### Green — phase complete when
 
-- [ ] `npm test` passes, including all Phase 1 and Phase 2 tests
-- [ ] Queries use numbered placeholders (`?1`, `?2`)
-- [ ] User service is the only module that talks to `env.DB`
+- [x] `npm test` passes, including all Phase 1 and Phase 2 tests (22 passed)
+- [x] Queries use numbered placeholders (`?1`, `?2`)
+- [x] User service is the only module that talks to `env.DB`
 
 **Deliverables**:
 - `src/lib/password.ts` + `password.test.ts`
@@ -556,7 +556,7 @@ type CreateUserInput = {
 
 ### Implementation Patterns
 
-- Reach D1 only from server code via `getCloudflareContext()` from `@opennextjs/cloudflare`, then `env.DB`. Centralize queries in the user service; route handlers do not run SQL.
+- Reach D1 only from server code via `getCloudflareContext({ async: true })` from `@opennextjs/cloudflare`, then `env.DB`. Centralize queries in the user service; route handlers do not run SQL.
 - Prepared statements with numbered placeholders (`?1`, `?2`). Never concatenate user input into SQL.
 - Prefer `all()` and read `results[0]` rather than `first()`.
 - Mark the user service and password-server modules so they cannot be imported from `'use client'` files.
@@ -568,7 +568,8 @@ type CreateUserInput = {
 
 | Package | Why | Status |
 |---------|-----|--------|
-| `zod` | Project convention: validate every route-handler body before use | Propose at install if not already approved |
+| `zod` | Validate service (and later route-handler) input | **Installed** in Phase 2 (`^4.6.1`) |
+| `server-only` | Prevent password-server and user-service from being imported into client components | **Installed** in Phase 2 |
 | `vitest`, `@vitejs/plugin-react@4`, `@testing-library/react`, `@testing-library/user-event`, `jsdom`, `vite-tsconfig-paths` | Unit TDD harness | **Installed** in Phase 1. Pin `plugin-react` to v4; v6 pulls Babel 8 and conflicts with shadcn |
 
 No auth library, no JWT library, no cookie session library. Web Crypto is already in the browser and in the Workers runtime.
@@ -600,7 +601,7 @@ D1 is a Cloudflare resource, not an npm package. Phase 1 binds `DB` to database 
 - [ ] `/mcqs` is a stub (copy + logout only), not an MCQ editor
 - [ ] Logout calls `POST /api/auth/logout` and then shows `/login`
 - [ ] API success bodies never include `password`, `password_hash`, or `password_salt`
-- [ ] User service exposes create, update, and delete even if only create is used by HTTP in this phase
+- [x] User service exposes create, update, and delete even if only create is used by HTTP in this phase
 - [ ] No cookies, tokens, or session records are introduced
 - [ ] Each implementation phase was built test-first (tests written and failing before production code)
 - [ ] `npm test` (Vitest) passes for the whole suite
@@ -709,6 +710,12 @@ Add entries here when bugs are found and fixed during implementation.
 **Cause**: OpenNext context does not exist under jsdom.
 **Solution**: Mock `@opennextjs/cloudflare` or mock the user service at the module boundary. Do not introduce `@cloudflare/vitest-pool-workers` without asking.
 
+### In-memory D1 mock treats DELETE as SELECT
+
+**Problem**: `deleteUser` appears to succeed but `getUserById` still returns the row.
+**Cause**: A regex like `/FROM users WHERE id = \?1/` also matches `DELETE FROM users WHERE id = ?1`.
+**Solution**: Match `SELECT` and `DELETE` separately (`^SELECT …` / `^DELETE …`) in `user-service.test.ts`.
+
 ### `npm` blocked in PowerShell (`npm.ps1` not digitally signed)
 
 **Problem**: `npm install` fails with an execution-policy error on `C:\Program Files\nodejs\npm.ps1`.
@@ -736,18 +743,18 @@ When working with this PRD:
 7. Add troubleshooting entries when bugs are found and fixed
 8. Keep all sections current — remove outdated information
 9. Use code references format: `filepath:line-number` when citing code
-10. Vitest packages listed in this PRD are approved. Ask before adding any other dependency (`zod` still needs a confirm if it was not approved in chat)
+10. Vitest, `zod`, and `server-only` are already installed. Ask before adding any other dependency
 11. Never run `npm run deploy` or `d1 migrations apply` with `--remote`
 12. Do not add cookies, JWTs, NextAuth, or middleware auth in this phase
-13. Phase 1 landed D1 and Vitest; keep AGENTS.md current as later phases add auth code
+13. Phase 2 landed the user service and password hashing; keep AGENTS.md current as later phases add HTTP and UI
 14. Follow `.cursor/skills/testing/SKILL.md` for Vitest setup, mocking, and what makes a test worth writing
-15. Stop at the end of each phase for user review. Commit and push that phase to `feature/register-login-logout` only when asked (Phase 1 push was requested)
+15. Stop at the end of each phase for user review. Commit and push that phase to `feature/register-login-logout`
 
 ---
 
 ## Current Status
 
 **Last Updated**: 2026-09-10
-**Current Phase**: Phase 1 - Vitest harness, D1, and users migration
+**Current Phase**: Phase 2 - User service and password hashing
 **Status**: COMPLETED — stopped for review
-**Next Steps**: After review, start Phase 2 (user service and password hashing) test-first. Confirm `zod` at install time. Do not start MCQ authoring.
+**Next Steps**: After review, start Phase 3 (auth HTTP endpoints) test-first. Do not start MCQ authoring.

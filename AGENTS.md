@@ -26,17 +26,18 @@ source of truth for what is being built and for the current phase of work.
 - **Wrangler** for Cloudflare configuration, secrets, and deployment
 - **Cloudflare D1** bound as `DB` (`database_name`: `quizmaker`); migrations live in `migrations/`
 - **Vitest** for unit tests (`npm test` / `npm run test:watch`)
+- **Zod** for input validation
+- **`server-only`** on modules that touch D1 or server password hashing
 
 Authentication libraries and an AI SDK are not installed yet. Do not write code that
-imports one without adding it first and telling the user. Zod is not installed yet;
-confirm before adding it.
+imports one without adding it first and telling the user.
 
 ## Layout
 
 ```
 src/app/            Routes, layouts, and global styles (App Router)
 src/components/ui/  shadcn/ui components (generated; avoid hand-editing)
-src/lib/            Shared utilities and services
+src/lib/            Shared utilities and services (`src/lib/services/` for domain logic)
 migrations/         D1 SQL migrations (apply locally only)
 ai-workspace/       Technical PRDs and planning documents
 .cursor/rules/      File-scoped conventions
