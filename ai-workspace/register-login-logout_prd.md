@@ -227,33 +227,59 @@ The client then navigates to `/login`.
 
 ### User Interface Requirements
 
-Use existing shadcn/ui pieces (`button`, `card`, `field`, `input`, `label`). Do not add `react-hook-form`. Replace the current Next.js starter homepage; this app's first screens are auth.
+Pages are built from the **shadcn login and signup blocks** (Card + Field + Input + Button, Tailwind via existing theme tokens). Do not add `react-hook-form`. Do not add new shadcn primitives unless a block import is missing. Replace the current Next.js starter homepage; this app's first screens are auth.
 
-#### Login (`/login`)
+The stock blocks are adapted to this app:
 
-- Card with username and password fields
-- Submit hashes the password in the browser, POSTs `/api/auth/login`, and on success navigates to `/mcqs`
-- Link to `/register` for teachers without an account
-- Inline field errors for validation; a form-level error for 401
-- Password input uses `type="password"`
+| Stock shadcn block | Quiz Maker |
+|---|---|
+| Login field labeled Email | **Username** (the API authenticates by username, not email) |
+| Signup "Full Name" | **First name** and **Last name** |
+| Signup email only | Email **plus username** (they may be the same string) |
+| Signup password | Password **and confirm password** |
+| Forgot password / Login with Google / Sign up with Google | **Removed** — social login and reset are out of scope |
+| `<a href="#">` placeholders | Next.js `Link` to `/login` or `/register` |
+
+Layout for both auth pages (from the blocks):
+
+```tsx
+<div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+  <div className="w-full max-w-sm">
+    {/* LoginForm or SignupForm */}
+  </div>
+</div>
+```
+
+#### Login (`/login`) — `src/components/login-form.tsx`
+
+- shadcn `LoginForm` card: title "Login to your account"
+- Username and password fields; password is `type="password"`
+- Submit hashes the plaintext password in the browser, POSTs `/api/auth/login`, and on success navigates to `/mcqs`
+- Link to `/register` ("Don't have an account? Sign up")
+- Inline `FieldError` for validation; form-level error for 401
+- No forgot-password link; no Google button
 
 **Validation (client, before hash):**
 
 - Username required
 - Password required, minimum 8 characters (measure the plaintext, not the hex digest)
 
-#### Register (`/register`)
+#### Register (`/register`) — `src/components/signup-form.tsx`
 
-- Card with first name, last name, username, email, password
-- Submit hashes the password in the browser, POSTs `/api/auth/register`, and on success navigates to `/mcqs`
-- Link back to `/login`
-- Field errors for 400; form-level error for 409
+- shadcn `SignupForm` card: title "Create an account"
+- First name, last name, username, email, password, confirm password
+- Password description: must be at least 8 characters
+- Submit hashes the password, POSTs `/api/auth/register`, and on success navigates to `/mcqs`
+- Link back to `/login` ("Already have an account? Sign in")
+- Field errors for client validation and 400; form-level error for 409
+- No Google button
 
 **Validation (client, before hash):**
 
 - First name, last name, username required, trimmed, non-empty
 - Email required and must look like an email
 - Password required, minimum 8 characters
+- Confirm password required and must match password
 - Username and email may be the same string
 
 #### Home (`/`)
@@ -411,7 +437,7 @@ Expected: tests fail because the routes do not exist or return the wrong status/
 - `src/app/api/auth/login/route.ts` + `route.test.ts`
 - `src/app/api/auth/logout/route.ts` + `route.test.ts`
 
-### Phase 4: Auth UI and MCQ stub - PLANNED
+### Phase 4: Auth UI and MCQ stub - COMPLETED
 
 **Objective**: A teacher can register or log in in the browser and reach the stub, then log out. Client behavior is proven with Testing Library; pages that are Server Components are not rendered in jsdom.
 
@@ -421,38 +447,41 @@ Expected: tests fail because the routes do not exist or return the wrong status/
 
 Extract interactive UI into `'use client'` components (forms, logout button) so they can be rendered. Mock `fetch` and `next/navigation` (`useRouter` / `redirect` as needed).
 
-- `src/components/auth/login-form.test.tsx` (name may match the file you create)
+- `src/components/login-form.test.tsx`
   - Renders username and password fields; password is `type="password"`
   - Submit with empty/short password does not POST
   - Submit hashes the password (body `password` is 64 hex chars, not the plaintext) and POSTs `/api/auth/login`
   - 200 → navigates to `/mcqs`
   - 401 → shows a generic error; stays on the form
   - Link to register is present
-- `src/components/auth/register-form.test.tsx`
-  - Renders first name, last name, username, email, password
-  - Client validation blocks empty required fields and invalid email
-  - Submit hashes then POSTs `/api/auth/register`
+  - No Google login and no forgot-password control
+- `src/components/signup-form.test.tsx`
+  - Renders first name, last name, username, email, password, and confirm password
+  - Client validation blocks empty required fields, invalid email, short password, and mismatched confirmation
+  - Submit hashes then POSTs `/api/auth/register` (confirm password is not sent)
   - 201 → navigates to `/mcqs`
   - 409 → shows an error
-- `src/components/auth/logout-button.test.tsx`
+  - Link to login is present; no Google signup
+- `src/components/logout-button.test.tsx`
   - Click POSTs `/api/auth/logout` then navigates to `/login`
 
 Expected: tests fail because the client components do not exist or do not hash/POST/navigate yet.
 
 #### Implement
 
-1. Login page at `/login` and register page at `/register` (compose the tested client components)
+1. Login page at `/login` and register page at `/register` using the shadcn block layout and `LoginForm` / `SignupForm`
 2. Replace `/` with a redirect to `/login`
 3. Client forms hash the password, then `fetch` the matching endpoint
 4. MCQ stub at `/mcqs` with the logout button
-5. Surface API errors on the forms
+5. Surface API errors on the forms via `FieldError`
+6. Drop social-login and forgot-password controls from the stock blocks
 
 Do not try to `render()` Server Component pages in Vitest. If `/` redirect or stub copy is awkward to unit test, prove it in Phase 5's browser pass and say so; do not add a hollow test.
 
 #### Green — phase complete when
 
-- [ ] `npm test` passes, including all Phase 1–4 tests
-- [ ] Forms use shadcn `Field` / `Input` / `Button`; no `react-hook-form`
+- [x] `npm test` passes, including all Phase 1–4 tests (48 passed)
+- [x] Forms use shadcn `Field` / `Input` / `Button` (login/signup blocks); no `react-hook-form`
 
 **Deliverables**:
 - Client form/logout components + colocated `*.test.tsx`
@@ -502,7 +531,9 @@ This phase does **not** add a new red test list. It is the integration gate: all
 - `src/app/api/auth/register/route.ts` / `route.test.ts`
 - `src/app/api/auth/login/route.ts` / `route.test.ts`
 - `src/app/api/auth/logout/route.ts` / `route.test.ts`
-- `src/components/auth/*` — client forms and logout + `*.test.tsx`
+- `src/components/login-form.tsx` / `login-form.test.tsx` — shadcn login block, username + password
+- `src/components/signup-form.tsx` / `signup-form.test.tsx` — shadcn signup block adapted for Quiz Maker
+- `src/components/logout-button.tsx` / `logout-button.test.tsx`
 - `src/app/login/page.tsx` — login UI
 - `src/app/register/page.tsx` — register UI
 - `src/app/mcqs/page.tsx` — MCQ stub
@@ -594,14 +625,14 @@ D1 is a Cloudflare resource, not an npm package. Phase 1 binds `DB` to database 
 
 - [x] A teacher can register with first name, last name, username, email, and password and receive 201 plus a public user object
 - [x] The plaintext password is never written to D1; `password_hash` and `password_salt` are populated
-- [ ] The register and login requests send a SHA-256 hex digest, not the plaintext password
+- [x] The register and login requests send a SHA-256 hex digest, not the plaintext password
 - [ ] Username and email may be the same string; both columns still exist and both are unique across users
 - [x] A second register with the same username or email is rejected (409)
 - [x] A teacher can log in with username + password and receive 200 plus the public user object
 - [x] Wrong username or password returns 401 with a generic message
-- [ ] Successful register and successful login both land the teacher on `/mcqs`
-- [ ] `/mcqs` is a stub (copy + logout only), not an MCQ editor
-- [ ] Logout calls `POST /api/auth/logout` and then shows `/login`
+- [x] Successful register and successful login both land the teacher on `/mcqs`
+- [x] `/mcqs` is a stub (copy + logout only), not an MCQ editor
+- [x] Logout calls `POST /api/auth/logout` and then shows `/login`
 - [x] API success bodies never include `password`, `password_hash`, or `password_salt`
 - [x] User service exposes create, update, and delete even if only create is used by HTTP in this phase
 - [x] No cookies, tokens, or session records are introduced
@@ -748,7 +779,7 @@ When working with this PRD:
 10. Vitest, `zod`, and `server-only` are already installed. Ask before adding any other dependency
 11. Never run `npm run deploy` or `d1 migrations apply` with `--remote`
 12. Do not add cookies, JWTs, NextAuth, or middleware auth in this phase
-13. Phase 3 landed the auth HTTP endpoints; keep AGENTS.md current as later phases add UI
+13. Phase 4 landed the auth UI and MCQ stub; Phase 5 is the lint/build/browser gate
 14. Follow `.cursor/skills/testing/SKILL.md` for Vitest setup, mocking, and what makes a test worth writing
 15. Stop at the end of each phase for user review. Commit and push that phase to `feature/register-login-logout`
 
@@ -757,6 +788,6 @@ When working with this PRD:
 ## Current Status
 
 **Last Updated**: 2026-09-10
-**Current Phase**: Phase 3 - Auth HTTP endpoints
+**Current Phase**: Phase 4 - Auth UI and MCQ stub
 **Status**: COMPLETED — stopped for review
-**Next Steps**: After review, start Phase 4 (auth UI and MCQ stub) test-first. Do not start MCQ authoring.
+**Next Steps**: After review, start Phase 5 (full suite, lint, build, browser pass against preview).
