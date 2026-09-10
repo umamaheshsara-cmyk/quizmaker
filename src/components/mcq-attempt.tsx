@@ -111,11 +111,22 @@ export function McqAttempt({
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
+				<form
+					onSubmit={(event) => {
+						event.preventDefault();
+						void onSubmit();
+					}}
+					noValidate
+				>
 				<FieldGroup>
 					<p className="whitespace-pre-wrap">{mcq.prompt}</p>
 					<Field data-invalid={Boolean(fieldError) || undefined}>
-						<FieldLabel>Your answer</FieldLabel>
-						<div className="flex flex-col gap-2">
+						<FieldLabel id="attempt-answer-label">Your answer</FieldLabel>
+						<div
+							role="radiogroup"
+							aria-labelledby="attempt-answer-label"
+							className="flex flex-col gap-2"
+						>
 							{CHOICES.map(({ letter, key }) => (
 								<label
 									key={letter}
@@ -167,11 +178,7 @@ export function McqAttempt({
 								Try Again
 							</Button>
 						) : (
-							<Button
-								type="button"
-								onClick={() => void onSubmit()}
-								disabled={pending}
-							>
+							<Button type="submit" disabled={pending}>
 								Submit
 							</Button>
 						)}
@@ -183,6 +190,7 @@ export function McqAttempt({
 						</Link>
 					</div>
 				</FieldGroup>
+				</form>
 			</CardContent>
 		</Card>
 	);

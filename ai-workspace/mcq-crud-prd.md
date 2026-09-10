@@ -4,7 +4,7 @@ Date last modified: 2026-09-10
 # MCQ CRUD - Technical PRD
 
 **Branch:** `feature/register-login-logout` (MCQ work is currently on this branch; move to `feature/mcq-crud` if the user asks)
-**Status:** Phase 7 COMPLETED
+**Status:** Phase 8 COMPLETED
 
 This document is the source of truth for the shared multiple-choice question bank. Auth remains specified by `ai-workspace/register-login-logout_prd.md` and `.cursor/rules/auth.mdc`. Do not change hashing, sessions, or auth routes unless this PRD is explicitly updated.
 
@@ -12,7 +12,7 @@ This document is the source of truth for the shared multiple-choice question ban
 
 ## Overview/Problem
 
-Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`. Phases 2–7 shipped the shared four-choice bank: D1-backed service, JSON API, Server Actions, dashboard list, New/Edit forms, and a single-question preview/attempt graded on the server.
+Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`. Phases 1–7 shipped the shared four-choice bank: D1-backed service, JSON API, Server Actions, dashboard list, New/Edit forms, and a single-question preview/attempt graded on the server. Phase 8 verified that slice (tests, lint, build, local D1, Workers preview HTTP) and brought this PRD current.
 
 This slice is the working test-bank: four-choice questions that any teacher who can open the page can add, browse, update, and remove.
 
@@ -50,7 +50,7 @@ We believe that a simple shared MCQ bank with HTTP CRUD, a four-choice schema, a
 ### Cut
 
 - **Server Actions for auth forms** — Auth still uses client `fetch` + JSON route handlers so the password can be hashed in the browser. **MCQ UI uses Server Actions** (`src/app/mcqs/actions.ts`) wrapping the service. JSON `/api/mcqs` remains for the HTTP contract.
-- **Author / `created_by` / FK to `users`** — There is still no session, so the server cannot know which teacher is writing. A client-supplied username would be spoofable. The bank is shared and ungated, same as the current `/mcqs` stub.
+- **Author / `created_by` / FK to `users`** — There is still no session, so the server cannot know which teacher is writing. A client-supplied username would be spoofable. The bank is shared and ungated.
 - **Normalized `choices` table** — Four columns on `mcqs` is enough for this teaching slice. A child table can wait until the product needs N options.
 - **Auth-gated `/mcqs` or `/api/mcqs`** — Without cookies/tokens there is nothing to check. Anyone with the URL can list and mutate the bank. That is intentional and must stay documented, not “fixed” with a fake header.
 
@@ -82,7 +82,7 @@ Auth tests must stay green. This slice adds files; it does not rewrite password 
 - Service tests mock `@opennextjs/cloudflare` `getCloudflareContext` with an in-memory D1 (copy the user-service test style)
 - Form/list tests mock `fetch` and `next/navigation` `useRouter` as needed
 - Query React by role and accessible name. Do not `render()` Server Component pages
-- Keep D1 access inside `src/lib/services/` modules (`user-service.ts` and `mcq-service.ts`). Route handlers do not run SQL.
+- Keep D1 access inside `src/lib/services/` modules (`user-service.ts`, `mcq-service.ts`, and `attempt-service.ts`). Route handlers do not run SQL.
 
 On Windows, PowerShell may block `npm.ps1`. Use `npm.cmd` / `npx.cmd`. Git may need `Git\cmd` on PATH.
 
@@ -92,7 +92,7 @@ On Windows, PowerShell may block `npm.ps1`. Use `npm.cmd` / `npx.cmd`. Git may n
 
 ### Database Schema
 
-D1 is already bound as `DB`, database name `quizmaker`. Users live in `migrations/0001_create_users.sql`. This slice adds a second migration for `mcqs`. Do not recreate D1. Do not alter `users`.
+D1 is already bound as `DB`, database name `quizmaker`. Users live in `migrations/0001_create_users.sql`. This slice adds migrations for `mcqs` and `attempts`. Do not recreate D1. Do not alter `users`.
 
 ```sql
 CREATE TABLE mcqs (
@@ -109,6 +109,8 @@ CREATE TABLE mcqs (
 
 CREATE INDEX idx_mcqs_created_at ON mcqs (created_at);
 ```
+
+`attempts` (Phase 7, `migrations/0003_create_attempts.sql`): `id`, `mcq_id` (FK to `mcqs` ON DELETE CASCADE), `selected` CHECK A–D, `is_correct` 0/1, `created_at`. No `user_id`.
 
 **Column notes:**
 
@@ -282,9 +284,9 @@ Keep auth pages unchanged. Keep `/` → `/login`.
 
 ## Implementation Phases
 
-Each of Phases 1–7 is a TDD loop. This PRD has **no Phase 8**. Variable choice counts (2–6), stored descriptions/explanations, multi-question quizzes, and sessions stay out of scope. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
+Each of Phases 1–8 is a TDD loop except Phase 8, which is verification and documentation. Variable choice counts (2–6), stored descriptions/explanations, multi-question quizzes, and sessions stay out of scope. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
 
-### Phase 1: Database Foundation - PLANNED
+### Phase 1: Database Foundation - COMPLETED
 
 **Objective:** The shared question bank has a real `mcqs` table in local D1.
 
@@ -314,9 +316,9 @@ Do not rewrite `users-schema.test.ts`. It must keep passing.
 
 #### Green — phase complete when
 
-- [ ] `npm test` passes, including `mcqs-schema.test.ts` and all auth tests
-- [ ] Local D1 has the `mcqs` table
-- [ ] `users` table is unchanged
+- [x] `npm test` includes `mcqs-schema.test.ts` (Phase 8 restored the missing migration + contract tests)
+- [x] Local D1 has the `mcqs` table (`PRAGMA`/sqlite_master via `wrangler d1 execute --local`)
+- [x] `users` table is unchanged
 
 **Deliverables:**
 
@@ -487,7 +489,7 @@ First run after those tests: Create Question / Preview / loading failed (link st
 - [x] `npm run lint` — **exit 0**
 - [x] `npm run build` — **exit 0** (Next.js 16.2.12; first run failed typecheck on `deleteMcqAction`, then succeeded after the return-type fix)
 - [x] No `react-hook-form`, no new dependencies, no auth/session changes
-- [ ] Browser / `npm run preview` — not run here (no browser tools in this session)
+- [ ] Browser / `npm run preview` — not run in Phase 5. Covered in Phase 8 over HTTP against Workers preview (no GUI browser tools).
 
 **Deliverables:**
 
@@ -572,6 +574,54 @@ First run: schema/service files missing; actions not exported; Preview still a d
 - `src/components/mcq-attempt.tsx` + test
 - `src/app/mcqs/[id]/page.tsx`
 
+### Phase 8: Quality, Documentation & Final Verification - COMPLETED
+
+**Objective:** Prove the shipped MCQ slice against this PRD. No new features, no new dependencies, no scope change.
+
+Do not redo Phases 1–7 except to restore missing documented artifacts or fix bugs found in verification.
+
+#### Tasks
+
+1. Review code against In/Out/Cut, layering, and acceptance criteria
+2. `npm test`, `npm run lint`, `npm run build` — record actual results
+3. Confirm local D1 has `users`, `mcqs`, and `attempts`
+4. Confirm no cookies/JWT/sessions/author columns
+5. Walk the user flow against `npm run preview` (Workers + local D1). Record GUI gaps if no browser tools.
+6. Bring this PRD current (phase markers, schema, key files, troubleshooting)
+
+#### Verification findings (fixed)
+
+- Missing `migrations/0002_create_mcqs.sql` and `mcqs-schema.test.ts` — restored from this PRD’s Phase 1 SQL (not a new feature)
+- Preview/attempt Submit was `type="button"` outside a form — wrapped in a form with `type="submit"`; answer radios in a labelled `radiogroup`
+- `signup-form.test.tsx` timed out at 5s while typing six fields — `userEvent.setup({ delay: null })` (test-only; register UI unchanged)
+- After `npm run preview`, `eslint .` scanned `.wrangler/tmp` worker bundles — ignore `.wrangler/**` in `eslint.config.mjs`
+
+#### `npm run preview` user-flow pass (Workers on `http://127.0.0.1:8787`)
+
+No GUI browser tools in this session. The flow was exercised with HTTP against the OpenNext/Wrangler preview (D1 bound locally), which is the runtime that matters for this stack.
+
+- `GET /` → **307** `/login`; `/login`, `/register`, `/mcqs`, `/mcqs/new` → **200**
+- Register **201**, login **200** (no `Set-Cookie`), bad password **401** `"Invalid username or password"`, logout **200** `{ ok: true }`, then `/login` **200**
+- Validation: blank prompt / duplicate choices / invalid `correct` → **400** `"Validation failed"`
+- Create **201** public MCQ; list and dashboard HTML include the prompt; get-by-id **200**; missing id **404** `"Question not found"`
+- `/mcqs/[id]` preview: prompt, A–D, Submit, labelled `radiogroup`; no `"correct":"B"` in the attempt payload; unknown id shows Question not found
+- `/mcqs/[id]/edit` shows Edit Question with the prompt prefilled; PUT **200** updates prompt/`correct`; DELETE **200** `{ ok: true }` then GET **404**
+- `submitAttemptAction` on preview: selected B (correct) → `{ ok: true, isCorrect: true, correct: "B" }`; selected A → `{ ok: true, isCorrect: false, correct: "B" }`; local D1 `attempts` recorded `is_correct` 1 then 0. No `Set-Cookie` on the action response
+- Dashboard HTML: Create Question, Preview/Edit links, Delete, Logout
+
+Not visually clicked in a browser: delete confirm dialog, Saving… spinner, Try Again in the GUI.
+
+#### Green — phase complete when
+
+- [x] `npm test` — **20 files, 131 passed** (exit 0)
+- [x] `npm run lint` — **exit 0**
+- [x] `npm run build` — **exit 0** (Next.js 16.2.12; routes include `/mcqs`, `/mcqs/new`, `/mcqs/[id]`, `/mcqs/[id]/edit`, `/api/mcqs`)
+- [x] Local D1 tables: `users`, `mcqs`, `attempts` (`mcqs` has no author/`user_id`; `attempts` has no `user_id`)
+- [x] No session/cookie/JWT usage under `src/`
+- [x] `npm run preview` user flow verified over HTTP (Workers + local D1); GUI click-through was not available in this session
+
+**Deliverables:** this PRD updated; missing `0002` migration + schema tests in repo
+
 ---
 
 ## Technical Implementation Details
@@ -597,8 +647,8 @@ Never import `mcq-service.ts`, `attempt-service.ts`, or `user-service.ts` from a
 
 | Path | Role | Status |
 |------|------|--------|
-| `migrations/0002_create_mcqs.sql` | `mcqs` table | Phase 1 (not in this workspace at Phase 2) |
-| `src/lib/db/mcqs-schema.test.ts` | Migration contract | Phase 1 |
+| `migrations/0002_create_mcqs.sql` | `mcqs` table | **Phase 1/8 done** |
+| `src/lib/db/mcqs-schema.test.ts` | Migration contract | **Phase 1/8 done** |
 | `src/lib/mcq-schemas.ts` | Zod create/update bodies + `PublicMcq` | **Phase 2/4 done** |
 | `src/lib/services/mcq-service.ts` | Persistence | **Phase 2 done** |
 | `src/lib/services/mcq-service.test.ts` | Mocked D1 (11 tests) | **Phase 2 done** |
@@ -614,7 +664,7 @@ Never import `mcq-service.ts`, `attempt-service.ts`, or `user-service.ts` from a
 | `src/app/mcqs/page.tsx` | Bank list + logout + Suspense | **Phase 5 done** |
 | `src/app/mcqs/new/page.tsx` | Create | **Phase 6 done** |
 | `src/app/mcqs/[id]/edit/page.tsx` | Edit + Suspense | **Phase 6 done** |
-| `.cursor/rules/mcq.mdc` | Conventions | **Phase 4 done** |
+| `.cursor/rules/mcq.mdc` | Conventions | **Phase 7/8 current** |
 
 Reuse: `src/lib/http.ts` (`jsonError`), `src/components/logout-button.tsx`, shadcn table/dialog/field.
 
@@ -692,7 +742,7 @@ None. `zod`, `server-only`, and Vitest are already installed. Ask before adding 
 
 ## Acceptance Criteria
 
-- [ ] Local D1 has an `mcqs` table with prompt, four choices, `correct` CHECK A–D, timestamps
+- [x] Local D1 has an `mcqs` table with prompt, four choices, `correct` CHECK A–D, timestamps
 - [x] `users` and auth behavior are unchanged
 - [x] A teacher can create an MCQ and receive 201 plus the public object
 - [x] List returns every question, newest first, including `[]` when empty
@@ -701,11 +751,12 @@ None. `zod`, `server-only`, and Vitest are already installed. Ask before adding 
 - [x] Invalid bodies (blank prompt, invalid `correct`, duplicate choice texts) return 400
 - [x] `/mcqs` shows the bank, empty/loading/error states, Create Question, Preview/Edit/Delete, and Logout
 - [x] Successful create/edit returns the teacher to `/mcqs`
-- [ ] No cookies, tokens, sessions, or author columns are introduced
+- [x] Preview/attempt grades on the server (`(id, selected)` only) and records `attempts`
+- [x] No cookies, tokens, sessions, or author columns are introduced
 - [x] Each implementation phase was built test-first
 - [x] `npm test` (Vitest) passes for the whole suite (auth + MCQ)
 - [x] `npm run lint` and `npm run build` succeed
-- [ ] Browser happy path (`npm run preview`) still outstanding in this session
+- [x] `npm run preview` (Workers) end-to-end HTTP: auth, CRUD, preview page, server-graded attempt + D1 `attempts` row, logout → `/login` (no GUI browser in this session)
 
 ---
 
@@ -715,11 +766,11 @@ There is no production traffic requirement for this teaching demo.
 
 | Metric | Target | How Measured |
 |--------|--------|--------------|
-| Create happy path | Completes and the question appears on `/mcqs` | Manual browser pass |
-| Edit happy path | Changed prompt/correct shows after save | Manual browser pass |
-| Delete | Row disappears after confirm | Manual browser pass |
-| Empty bank | Empty state, not a broken table | Open `/mcqs` on a fresh local DB |
-| Auth still works | Login still reaches `/mcqs`; logout still reaches `/login` | Manual browser pass |
+| Create happy path | Completes and the question appears on `/mcqs` | Phase 8: POST `/api/mcqs` 201 + dashboard HTML; Vitest list/form |
+| Edit happy path | Changed prompt/correct shows after save | Phase 8: PUT 200 then GET; Vitest form/actions |
+| Delete | Row disappears after confirm | Phase 8: DELETE 200 then GET 404; Vitest confirm dialog |
+| Empty bank | Empty state, not a broken table | Vitest empty copy; list returns `{ mcqs: [] }` |
+| Auth still works | Login still reaches `/mcqs`; logout still reaches `/login` | Phase 8: register/login/logout HTTP; `/login` 200 after logout |
 | Unit tests | `npm test` exits 0; failure paths covered | Vitest at each phase gate and Phase 5 |
 
 ---
@@ -808,11 +859,29 @@ Add entries here when bugs are found and fixed during implementation.
 **Cause:** Distinct-choice rule implemented only in the form.
 **Solution:** Enforce in Zod (`mcq-schemas.ts`) so POST/PUT cannot skip it.
 
+### `wrangler d1 migrations apply` waits for confirmation
+
+**Problem:** The command hangs in a local PowerShell session with no table applied.
+**Cause:** Wrangler prompts for confirmation in interactive terminals.
+**Solution:** Set `CI=true` so the prompt is skipped (`$env:CI = "true"; npx wrangler d1 migrations apply quizmaker --local`). Never add `--remote`.
+
 ### `deleteMcqAction` fails `next build` typecheck
 
 **Problem:** `Type '{ ok: true; }' is not assignable to type 'McqActionResult<Record<string, never>>'`.
 **Cause:** `{ ok: true } & Record<string, never>` makes `ok` incompatible with the empty index signature.
 **Solution:** Type delete success as `{ ok: true } | McqActionError` instead of intersecting with `Record<string, never>`.
+
+### Signup form Vitest cases time out at 5s
+
+**Problem:** `signup-form.test.tsx` fails with `Test timed out in 5000ms` while typing six fields.
+**Cause:** `@testing-library/user-event` default key delay plus a busy machine (for example `npm run preview` running) exceeds the default test timeout.
+**Solution:** Call `userEvent.setup({ delay: null })` in that file so typing is synchronous. Do not change the register form itself.
+
+### `npm run lint` floods warnings after preview
+
+**Problem:** `eslint .` reports thousands of warnings from generated worker bundles.
+**Cause:** Wrangler writes `.wrangler/tmp/**/worker.js` while `npm run preview` is running; those files were not in ESLint ignores.
+**Solution:** Ignore `.wrangler/**` in `eslint.config.mjs` (same idea as `.next/**` and `.open-next/**`). Do not edit the generated bundles.
 
 ---
 
@@ -821,8 +890,8 @@ Add entries here when bugs are found and fixed during implementation.
 When working with this PRD:
 
 1. Read Problem, Hypothesis, and Scope (In/Out/Cut) before writing code
-2. **TDD is mandatory** for Phases 1–7: listed tests, `npm test` (red), implement, `npm test` (green)
-3. Implement **only the current phase**. Phase 7 (preview/attempts) is done. This PRD has no Phase 8 — do not invent multi-question quizzes, 2–6 choices, stored descriptions, or ownership unless a new PRD asks.
+2. **TDD is mandatory** for Phases 1–7: listed tests, `npm test` (red), implement, `npm test` (green). Phase 8 is verification only.
+3. Implement **only the current phase**. Phase 8 (quality and documentation) is done. Do not invent multi-question quizzes, 2–6 choices, stored descriptions, or ownership unless a new PRD asks.
 4. Update phase status markers and this Current Status section as work progresses
 5. Add implementation details under Technical Implementation Details as code is written (filenames, commit hashes)
 6. Mark acceptance criteria as complete when features work
@@ -835,16 +904,29 @@ When working with this PRD:
 13. Do not change auth hashing, `users`, or `/api/auth/*`
 14. Follow `.cursor/skills/testing/SKILL.md`, `.cursor/rules/d1.mdc`, `.cursor/rules/auth.mdc`, and `.cursor/rules/nextjs.mdc`
 15. Windows: `npm.cmd` / `npx.cmd`
-16. After each phase, stop for review if the user asked to review per phase. Phase 7 is complete. Do not start unlisted work.
+16. After each phase, stop for review if the user asked to review per phase. Phase 8 is complete. Wait for review.
 
 ---
 
 ## Current Status
 
 **Last Updated:** 2026-09-10
-**Current Phase:** Phase 7 - Preview & Attempts
+**Current Phase:** Phase 8 - Quality, Documentation & Final Verification
 **Status:** COMPLETED
-**Next Steps:** This PRD has no Phase 8. Apply `0003_create_attempts.sql` locally (`--local`) after `mcqs` exists. Do not add sessions or a multi-question exam.
+**Next Steps:** Wait for user review. Do not add sessions, 2–6 choices, or a multi-question exam.
+
+**Phase 8 evidence**
+- `npm test` — 20 files, **131 passed** (exit 0)
+- `npm run lint` — exit 0
+- `npm run build` — exit 0
+- Local D1 (`wrangler d1 execute --local`): `users`, `mcqs`, `attempts`
+- `src/` has no cookie/JWT/session usage
+- Restored missing `0002_create_mcqs.sql` + `mcqs-schema.test.ts` from the Phase 1 contract
+- Attempt UI: form submit + labelled radiogroup
+- Signup Vitest flake: `userEvent.setup({ delay: null })` so six-field fills stay under 5s
+- ESLint ignore `.wrangler/**` so preview temp bundles are not linted
+- `npm run preview` on `127.0.0.1:8787`: auth + CRUD + preview HTML + `submitAttemptAction` grades and writes `attempts`; no new dependencies
+- GUI browser click-through was not available; HTTP against Workers preview was used instead
 
 **Phase 7 evidence**
 - Red: attempts schema/service missing; Preview still a dialog; actions not exported
@@ -900,7 +982,7 @@ When working with this PRD:
 |-------------|----------|
 | Table | Prompt (truncated to 80), correct letter, actions |
 | Create Question | Link to `/mcqs/new` |
-| Edit / Preview / Delete | Edit → `/mcqs/[id]/edit`; Preview dialog; Delete confirm dialog |
+| Edit / Preview / Delete | Edit → `/mcqs/[id]/edit`; Preview → `/mcqs/[id]` (Phase 7 replaced the dialog); Delete confirm dialog |
 | Delete confirmation | Existing “Delete this question?” dialog then `deleteMcqAction` |
 | Loading / empty / error | `Suspense` + refresh `role="status"`; empty copy; `initialError` alert |
 | Auth / hydration | `LogoutButton` kept; no session; no client list `fetch` |

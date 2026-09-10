@@ -14,6 +14,10 @@ import { SignupForm } from "./signup-form";
 
 const PASSWORD = "password1";
 
+function setupUser() {
+	return userEvent.setup({ delay: null });
+}
+
 async function fillValidForm(
 	user: ReturnType<typeof userEvent.setup>,
 	overrides?: { email?: string; confirm?: string; password?: string },
@@ -58,7 +62,7 @@ describe("SignupForm", () => {
 	});
 
 	it("does not POST when email is invalid", async () => {
-		const user = userEvent.setup();
+		const user = setupUser();
 		render(<SignupForm />);
 		await fillValidForm(user, { email: "not-an-email" });
 		await user.click(
@@ -68,7 +72,7 @@ describe("SignupForm", () => {
 	});
 
 	it("does not POST when confirmation does not match", async () => {
-		const user = userEvent.setup();
+		const user = setupUser();
 		render(<SignupForm />);
 		await fillValidForm(user, { confirm: "password2" });
 		await user.click(
@@ -79,7 +83,7 @@ describe("SignupForm", () => {
 	});
 
 	it("hashes the password and POSTs /api/auth/register without the confirmation", async () => {
-		const user = userEvent.setup();
+		const user = setupUser();
 		vi.mocked(fetch).mockResolvedValue(
 			new Response(JSON.stringify({ id: "user-1" }), { status: 201 }),
 		);
@@ -106,7 +110,7 @@ describe("SignupForm", () => {
 	});
 
 	it("navigates to /mcqs after a 201", async () => {
-		const user = userEvent.setup();
+		const user = setupUser();
 		vi.mocked(fetch).mockResolvedValue(
 			new Response(JSON.stringify({ id: "user-1" }), { status: 201 }),
 		);
@@ -119,7 +123,7 @@ describe("SignupForm", () => {
 	});
 
 	it("shows an error on 409", async () => {
-		const user = userEvent.setup();
+		const user = setupUser();
 		vi.mocked(fetch).mockResolvedValue(
 			new Response(
 				JSON.stringify({ error: "Username or email already taken" }),
