@@ -132,6 +132,7 @@ Login body: `{ username, password }` with the same digest. Login is by **usernam
 | 3 | `76268f1` | Add register, login, and logout HTTP endpoints. |
 | 4 | `b491e8e` | Add shadcn login and signup pages with an MCQ stub. |
 | 5 | `2bd9639` | Record Phase 5 verification and bring the auth PRD current. |
+| 5b | `461f399` | Document as-built auth code and pin conventions for the next sprint. |
 
 ---
 
