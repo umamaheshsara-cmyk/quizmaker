@@ -6,7 +6,7 @@ Date last modified: 2026-09-10
 **Branch:** `feature/register-login-logout`
 **Status:** COMPLETED (Phases 1–5)
 
-This document is the source of truth for the auth slice. Keep it current when the next sprint (MCQ authoring) starts — do not treat leftover "PLANNED" language as still true.
+This document is the source of truth for the auth slice. MCQ authoring is specified in `ai-workspace/mcq-crud-prd.md` — do not extend this file into question CRUD or sessions.
 
 ---
 
@@ -39,7 +39,7 @@ We believe that a simple hashed-password register/login/logout flow, without ses
 
 ### Out of Scope (still true for the next sprint unless a new PRD says otherwise)
 
-- Multiple-choice question create/edit/list (`/mcqs` is a stub only)
+- Multiple-choice question create/edit/list (`/mcqs` is a stub only; see `ai-workspace/mcq-crud-prd.md`)
 - Social logins (Google, Microsoft, etc.)
 - Tokens (JWT, opaque API tokens, refresh tokens)
 - Session management, cookies, and route guards
@@ -840,7 +840,7 @@ No auth/JWT/session library.
 ## Notes for AI Agents
 
 1. Read Problem, Hypothesis, **As-built map**, and Scope before writing code.
-2. This auth slice is **done**. The next feature is MCQ authoring on `/mcqs` — write/update a PRD for that; do not silently expand this one into sessions or question CRUD.
+2. This auth slice is **done**. MCQ authoring lives in `ai-workspace/mcq-crud-prd.md`. Do not silently expand this file into sessions or question CRUD.
 3. **TDD is mandatory** for new work: listed tests, `npm test` red, implement, `npm test` green.
 4. Keep this file and `AGENTS.md` current. Stale "not installed yet" language misleads every future chat.
 5. Cite code as `filepath:line-number`.
@@ -853,10 +853,10 @@ No auth/JWT/session library.
 
 ### Suggested start for the MCQ sprint
 
-- New PRD under `ai-workspace/` from `TEMPLATE_TECHNICAL_PRD.md`.
-- Do not replace `/mcqs` stub copy until the new PRD's first phase.
-- Reuse `users.id` as the author if questions are per-teacher; there is still **no session**, so "current user" is not available unless the new PRD adds it.
-- Keep auth hashing, endpoints, and forms unless the new PRD explicitly changes them.
+- Follow `ai-workspace/mcq-crud-prd.md`. Phase 1 is Database Foundation only.
+- Do not replace `/mcqs` stub copy until that PRD's UI phase.
+- There is still **no session**. The MCQ PRD cuts author/ownership for that reason.
+- Keep auth hashing, endpoints, and forms unless the MCQ PRD explicitly changes them.
 
 ---
 
@@ -865,7 +865,7 @@ No auth/JWT/session library.
 **Last Updated**: 2026-09-10
 **Current Phase**: Phase 5 - Verify
 **Status**: COMPLETED
-**Next Steps**: New PRD for MCQ authoring from `ai-workspace/TEMPLATE_TECHNICAL_PRD.md`. Do not extend this slice with sessions or social login unless asked. There is still no current-user identity on `/mcqs`.
+**Next Steps**: Implement MCQ from `ai-workspace/mcq-crud-prd.md` (Phase 1 first). Do not extend this auth slice with sessions or social login unless asked. There is still no current-user identity on `/mcqs`.
 
 **Phase 5 evidence**
 - `npm test` — 48 passed (10 files)

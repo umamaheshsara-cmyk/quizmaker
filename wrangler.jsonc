@@ -22,9 +22,7 @@
 		{
 			"binding": "DB",
 			"database_name": "quizmaker",
-			// Placeholder for local `wrangler d1 … --local`. Replace with the
-			// UUID from `npx wrangler d1 create quizmaker` before remote use.
-			"database_id": "local-only-quizmaker"
+			"database_id": "f0f2ae7d-6914-4697-bafa-7dd4a283aca4"
 		}
 	]
 	/**
