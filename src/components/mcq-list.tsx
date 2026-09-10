@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import { deleteMcqAction, listMcqsAction } from "@/app/mcqs/actions";
 import type { PublicMcq } from "@/lib/mcq-schemas";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Dialog,
@@ -25,13 +24,6 @@ import {
 } from "@/components/ui/table";
 
 const PROMPT_PREVIEW_LENGTH = 80;
-
-const CHOICES = [
-	{ letter: "A", key: "choiceA" },
-	{ letter: "B", key: "choiceB" },
-	{ letter: "C", key: "choiceC" },
-	{ letter: "D", key: "choiceD" },
-] as const;
 
 function previewPrompt(prompt: string) {
 	if (prompt.length <= PROMPT_PREVIEW_LENGTH) {
@@ -57,11 +49,8 @@ export function McqList({ initialMcqs, initialError = null }: McqListProps) {
 	const [mcqs, setMcqs] = useState(initialMcqs);
 	const [error, setError] = useState(initialError);
 	const [pendingId, setPendingId] = useState<string | null>(null);
-	const [previewId, setPreviewId] = useState<string | null>(null);
 	const [deleting, setDeleting] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
-
-	const previewMcq = mcqs.find((mcq) => mcq.id === previewId) ?? null;
 
 	async function refresh() {
 		setRefreshing(true);
@@ -135,13 +124,15 @@ export function McqList({ initialMcqs, initialError = null }: McqListProps) {
 								<TableCell>{mcq.correct}</TableCell>
 								<TableCell className="text-right">
 									<div className="flex justify-end gap-2">
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => setPreviewId(mcq.id)}
+										<Link
+											href={`/mcqs/${mcq.id}`}
+											className={buttonVariants({
+												variant: "outline",
+												size: "sm",
+											})}
 										>
 											Preview
-										</Button>
+										</Link>
 										<Link
 											href={`/mcqs/${mcq.id}/edit`}
 											className={buttonVariants({
@@ -165,52 +156,6 @@ export function McqList({ initialMcqs, initialError = null }: McqListProps) {
 					</TableBody>
 				</Table>
 			) : null}
-			<Dialog
-				open={previewMcq !== null}
-				onOpenChange={(open) => {
-					if (!open) {
-						setPreviewId(null);
-					}
-				}}
-			>
-				<DialogContent className="sm:max-w-lg">
-					<DialogHeader>
-						<DialogTitle>Preview question</DialogTitle>
-						<DialogDescription>
-							Read-only view of this shared-bank question.
-						</DialogDescription>
-					</DialogHeader>
-					{previewMcq ? (
-						<div className="flex flex-col gap-3">
-							<p className="whitespace-pre-wrap">{previewMcq.prompt}</p>
-							<ul className="flex flex-col gap-2">
-								{CHOICES.map(({ letter, key }) => (
-									<li
-										key={letter}
-										className="flex items-center gap-2 whitespace-normal"
-									>
-										<span>
-											{letter}. {previewMcq[key]}
-										</span>
-										{previewMcq.correct === letter ? (
-											<Badge>Correct</Badge>
-										) : null}
-									</li>
-								))}
-							</ul>
-						</div>
-					) : null}
-					<DialogFooter>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => setPreviewId(null)}
-						>
-							Close
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 			<Dialog
 				open={pendingId !== null}
 				onOpenChange={(open) => {

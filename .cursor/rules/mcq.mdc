@@ -1,6 +1,6 @@
 ---
 description: MCQ bank conventions — shared questions, Server Actions, no sessions
-globs: src/app/mcqs/**,src/app/api/mcqs/**,src/lib/mcq-schemas.ts,src/lib/services/mcq-service.ts,src/components/mcq-*.tsx
+globs: src/app/mcqs/**,src/app/api/mcqs/**,src/lib/mcq-schemas.ts,src/lib/services/mcq-service.ts,src/lib/services/attempt-service.ts,src/components/mcq-*.tsx
 alwaysApply: false
 ---
 
@@ -13,11 +13,12 @@ unless a new PRD asks for them.
 ## Layering
 
 ```
-McqList / McqForm   ('use client')
-  Server Actions    src/app/mcqs/actions.ts
-    Zod             src/lib/mcq-schemas.ts
-      mcq-service   src/lib/services/mcq-service.ts
-        D1          getCloudflareContext({ async: true })
+McqList / McqForm / McqAttempt   ('use client')
+  Server Actions                 src/app/mcqs/actions.ts
+    Zod                          src/lib/mcq-schemas.ts
+      mcq-service                question CRUD
+      attempt-service            SELECT mcqs.correct + INSERT attempts
+        D1                       getCloudflareContext({ async: true })
 ```
 
 JSON route handlers under `src/app/api/mcqs/` remain for the HTTP contract.
@@ -26,17 +27,25 @@ UI mutations go through Server Actions. Actions must not use `env.DB`.
 The `/mcqs` dashboard loads the list in a Server Component (`force-dynamic`)
 and passes `initialMcqs` into `McqList`. Do not fetch `/api/mcqs` from the
 client or `setState` in `useEffect` to hydrate the table. Row actions are
-Preview (dialog), Edit (`/mcqs/[id]/edit`), and Delete (confirm dialog).
+Preview (`/mcqs/[id]`), Edit (`/mcqs/[id]/edit`), and Delete (confirm dialog).
 Create Question goes to `/mcqs/new`. New/Edit forms use a Question textarea
 (stored as `prompt`), four choices A–D, radios for exactly one correct,
 Save/Cancel, and a Saving status. Do not add 2–6 choice UI or a description
-column. Logout stays `POST /api/auth/logout`.
+column.
+
+Preview/attempt loads through `getMcqForAttemptAction` (no `correct` in
+props). Submit sends `(id, selected)` only. `attempt-service` grades against
+D1 and records an anonymous row in `attempts` (no `user_id`). Logout stays
+`POST /api/auth/logout`.
 
 ## Validation
 
 `mcqInputSchema`: trimmed prompt (1–2000), choices A–D (1–500, pairwise
 distinct), `correct` A/B/C/D. Missing id → `Question not found`.
+`attemptSelectedSchema`: A/B/C/D.
 
 ## Public shape
 
 `{ id, prompt, choiceA, choiceB, choiceC, choiceD, correct, createdAt, updatedAt }`
+
+Attempt view omits `correct` until the server returns a grade.

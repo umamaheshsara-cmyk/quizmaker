@@ -25,6 +25,7 @@ export const mcqInputSchema = z
 	);
 
 export const mcqIdSchema = z.string().trim().min(1);
+export const attemptSelectedSchema = z.enum(["A", "B", "C", "D"]);
 
 export type McqInput = z.infer<typeof mcqInputSchema>;
 export type McqCorrect = McqInput["correct"];
@@ -33,4 +34,13 @@ export type PublicMcq = McqInput & {
 	id: string;
 	createdAt: string;
 	updatedAt: string;
+};
+
+export type AttemptMcq = {
+	id: string;
+	prompt: string;
+	choiceA: string;
+	choiceB: string;
+	choiceC: string;
+	choiceD: string;
 };

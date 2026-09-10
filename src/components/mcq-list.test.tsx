@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,31 +57,10 @@ describe("McqList", () => {
 		expect(edit.getAttribute("href")).toBe("/mcqs/mcq-1/edit");
 	});
 
-	it("opens a Preview dialog with the full prompt, choices, and correct letter", async () => {
-		const user = userEvent.setup();
-		const longPrompt = `${"What is 2 + 2? ".repeat(10).trim()}`;
-		render(
-			<McqList
-				initialMcqs={[
-					{
-						...publicMcq,
-						prompt: longPrompt,
-					},
-				]}
-			/>,
-		);
-
-		await user.click(screen.getByRole("button", { name: /preview/i }));
-
-		const dialog = await screen.findByRole("dialog", {
-			name: /preview question/i,
-		});
-		expect(dialog.textContent).toContain(longPrompt);
-		expect(dialog.textContent).toContain("A. 3");
-		expect(dialog.textContent).toContain("B. 4");
-		expect(dialog.textContent).toContain("C. 5");
-		expect(dialog.textContent).toContain("D. 22");
-		expect(within(dialog).getByText("Correct")).toBeTruthy();
+	it("links Preview to /mcqs/[id]", () => {
+		render(<McqList initialMcqs={[publicMcq]} />);
+		const preview = screen.getByRole("link", { name: /preview/i });
+		expect(preview.getAttribute("href")).toBe("/mcqs/mcq-1");
 	});
 
 	it("shows a loading status while the list is refreshing", async () => {

@@ -4,7 +4,7 @@ Date last modified: 2026-09-10
 # MCQ CRUD - Technical PRD
 
 **Branch:** `feature/register-login-logout` (MCQ work is currently on this branch; move to `feature/mcq-crud` if the user asks)
-**Status:** Phase 6 COMPLETED
+**Status:** Phase 7 COMPLETED
 
 This document is the source of truth for the shared multiple-choice question bank. Auth remains specified by `ai-workspace/register-login-logout_prd.md` and `.cursor/rules/auth.mdc`. Do not change hashing, sessions, or auth routes unless this PRD is explicitly updated.
 
@@ -12,7 +12,7 @@ This document is the source of truth for the shared multiple-choice question ban
 
 ## Overview/Problem
 
-Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`. Phases 2–6 shipped the shared four-choice bank: D1-backed service, JSON API, Server Actions, dashboard list, and New/Edit question forms.
+Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`. Phases 2–7 shipped the shared four-choice bank: D1-backed service, JSON API, Server Actions, dashboard list, New/Edit forms, and a single-question preview/attempt graded on the server.
 
 This slice is the working test-bank: four-choice questions that any teacher who can open the page can add, browse, update, and remove.
 
@@ -33,13 +33,14 @@ We believe that a simple shared MCQ bank with HTTP CRUD, a four-choice schema, a
 - HTTP JSON endpoints for those operations
 - Replace the `/mcqs` stub with a list of questions, create, edit, and delete
 - Keep Logout on the MCQ pages
+- A single-question preview/attempt: select A–D, submit, server grades against D1, record an anonymous attempt, Try Again / Back
 - **Test-driven implementation with Vitest**: each phase starts with failing tests, then implementation until those tests are green
 
 ### Out of Scope
 
 - Sessions, cookies, JWT, route guards, or “current user” identity (unchanged from auth)
 - Per-teacher ownership, author fields, or edit/delete permissions
-- Assembling quizzes/tests from the bank, or a student-facing take-quiz flow
+- Assembling quizzes/tests from the bank, or a multi-question student exam
 - Variable number of choices (always four: A–D)
 - Tags, subjects, difficulty, explanations, images, or rich text
 - AI-generated questions (the AI SDK is not installed)
@@ -239,7 +240,7 @@ Keep auth pages unchanged. Keep `/` → `/login`.
 - `LogoutButton` (existing) in the header, same as today
 - “Create Question” control that navigates to `/mcqs/new`
 - Table of questions: prompt (truncated if long), correct letter, Preview, Edit, Delete
-- Preview opens a read-only dialog with the full prompt, choices A–D, and a Correct badge on the right letter
+- Preview navigates to `/mcqs/[id]` (attempt UI). Correctness is **not** shown on that page until the server grades a submit
 - Empty state when `mcqs` is `[]`: short copy plus the Create Question control. Do not render an empty table body as the only hint.
 - Loading: `Suspense` fallback on first paint; `role="status"` while the list refreshes after delete
 - Delete asks for confirmation (shadcn `dialog`) then `deleteMcqAction` and refreshes the list
@@ -268,11 +269,20 @@ Keep auth pages unchanged. Keep `/` → `/login`.
 - 404 → message and a way back to the list
 - Loading: `Suspense` fallback (`McqFormFallback`); page is `force-dynamic`
 
+#### Preview / attempt (`/mcqs/[id]`)
+
+- Load via `getMcqForAttemptAction` — props omit `correct`
+- Radios A–D, **Submit** calls `submitAttemptAction(id, selected)` only (no client `isCorrect`)
+- Server compares `selected` to the D1 `correct` column and inserts `attempts`
+- Feedback: Correct / Incorrect (and the server letter when wrong)
+- **Try Again** clears local state; **Back** → `/mcqs`
+- Loading: `Suspense` + Checking… while grading; 404 when the id is missing
+
 ---
 
 ## Implementation Phases
 
-Each of Phases 1–6 is a TDD loop. This PRD has **no Phase 7**. Variable choice counts (2–6), stored descriptions/explanations, and quizzes stay out of scope. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
+Each of Phases 1–7 is a TDD loop. This PRD has **no Phase 8**. Variable choice counts (2–6), stored descriptions/explanations, multi-question quizzes, and sessions stay out of scope. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
 
 ### Phase 1: Database Foundation - PLANNED
 
@@ -522,6 +532,46 @@ First run: 10 failed (titles still “Add a question”, label still Prompt, no 
 - `src/components/mcq-form.tsx` + `mcq-form.test.tsx`
 - `src/app/mcqs/new/page.tsx`, `src/app/mcqs/[id]/edit/page.tsx`
 
+### Phase 7: Preview & Attempts - COMPLETED
+
+**Objective:** Teachers can preview a question, pick an answer, and get server-side correct/incorrect feedback. The attempt is recorded. Auth, four-choice CRUD, and the dashboard stay as Phases 1–6.
+
+Do not redo Phases 1–6. Do not start Phase 8. No new dependencies. No sessions — attempts have no `user_id`.
+
+**TDD gate:** Phase 7 is not complete until schema/service/action/UI tests are green and `npm test` / `npm run lint` exit 0.
+
+#### Red — write these tests first
+
+- `src/lib/db/attempts-schema.test.ts` — `CREATE TABLE attempts` with `mcq_id`, `selected` A–D, `is_correct`, no `user_id`
+- `src/lib/services/attempt-service.test.ts` — grade from the stored letter; persist; 404
+- `src/app/mcqs/actions.test.ts` — `getMcqForAttemptAction` omits `correct`; `submitAttemptAction` validates and grades
+- `src/components/mcq-attempt.test.tsx` — select, submit, feedback, Try Again, Back, loading, 404
+- `src/components/mcq-list.test.tsx` — Preview links to `/mcqs/[id]`
+
+First run: schema/service files missing; actions not exported; Preview still a dialog.
+
+#### Implement
+
+1. `migrations/0003_create_attempts.sql` (apply **locally** after `0002` exists)
+2. `attempt-service.ts` — `SELECT correct FROM mcqs`, then `INSERT INTO attempts`. Never trust a client `isCorrect`
+3. `getMcqForAttemptAction` / `submitAttemptAction` — actions must not use `env.DB`
+4. `McqAttempt` + `/mcqs/[id]/page.tsx` (`force-dynamic`, `Suspense`)
+5. Dashboard Preview becomes a link (dialog removed so the attempt page does not leak the letter before submit)
+
+#### Green — phase complete when
+
+- [x] `npm test` — **19 files, 127 passed** (exit 0)
+- [x] `npm run lint` — **exit 0**
+- [x] Client submit payload is `(id, selected)` only
+- [x] No new dependencies, no session, no multi-question quiz
+
+**Deliverables:**
+
+- `migrations/0003_create_attempts.sql`
+- `src/lib/services/attempt-service.ts` + test
+- `src/components/mcq-attempt.tsx` + test
+- `src/app/mcqs/[id]/page.tsx`
+
 ---
 
 ## Technical Implementation Details
@@ -529,18 +579,19 @@ First run: 10 failed (titles still “Add a question”, label still Prompt, no 
 ### Layering (do not skip)
 
 ```
-McqList / McqForm     ('use client')
-  Server Actions      src/app/mcqs/actions.ts
-    Zod               src/lib/mcq-schemas.ts
-      mcq-service.ts  src/lib/services/mcq-service.ts  ← D1 for questions
-        D1            getCloudflareContext({ async: true })
+McqList / McqForm / McqAttempt   ('use client')
+  Server Actions                 src/app/mcqs/actions.ts
+    Zod                          src/lib/mcq-schemas.ts
+      mcq-service.ts             D1 for question CRUD
+      attempt-service.ts         SELECT mcqs.correct + INSERT attempts
+        D1                       getCloudflareContext({ async: true })
 ```
 
 JSON `src/app/api/mcqs/*` still exists (Phase 3). The UI does not `fetch` those routes.
 
-Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file (types from `mcq-schemas.ts` are safe).
+Never import `mcq-service.ts`, `attempt-service.ts`, or `user-service.ts` from a `'use client'` file (types from `mcq-schemas.ts` are safe).
 
-`user-service.ts` remains the only module that reads `users`. `mcq-service.ts` is the only module that reads `mcqs`.
+`user-service.ts` remains the only module that reads `users`. `mcq-service.ts` owns question CRUD. `attempt-service.ts` may `SELECT correct FROM mcqs` only to grade, then writes `attempts`.
 
 ### Key files
 
@@ -554,7 +605,11 @@ Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file (t
 | `src/app/api/mcqs/route.ts` | GET list, POST create | **Phase 3 done** |
 | `src/app/api/mcqs/[id]/route.ts` | GET/PUT/DELETE one | **Phase 3 done** |
 | `src/app/mcqs/actions.ts` | Server Actions | **Phase 4 done** |
-| `src/components/mcq-list.tsx` | Dashboard list, Preview, Create Question, loading | **Phase 5 done** |
+| `migrations/0003_create_attempts.sql` | Anonymous attempts | **Phase 7 done** |
+| `src/lib/services/attempt-service.ts` | Server-side grade + insert | **Phase 7 done** |
+| `src/components/mcq-attempt.tsx` | Preview/attempt UI | **Phase 7 done** |
+| `src/app/mcqs/[id]/page.tsx` | Preview route | **Phase 7 done** |
+| `src/components/mcq-list.tsx` | Dashboard list; Preview → `/mcqs/[id]` | **Phase 7 done** |
 | `src/components/mcq-form.tsx` | Create/edit form (New/Edit, Save/Cancel) | **Phase 6 done** |
 | `src/app/mcqs/page.tsx` | Bank list + logout + Suspense | **Phase 5 done** |
 | `src/app/mcqs/new/page.tsx` | Create | **Phase 6 done** |
@@ -766,8 +821,8 @@ Add entries here when bugs are found and fixed during implementation.
 When working with this PRD:
 
 1. Read Problem, Hypothesis, and Scope (In/Out/Cut) before writing code
-2. **TDD is mandatory** for Phases 1–6: listed tests, `npm test` (red), implement, `npm test` (green)
-3. Implement **only the current phase**. Phase 6 (create/edit polish) is done. This PRD has no Phase 7 — do not invent quizzes, 2–6 choices, stored descriptions, or ownership unless a new PRD asks.
+2. **TDD is mandatory** for Phases 1–7: listed tests, `npm test` (red), implement, `npm test` (green)
+3. Implement **only the current phase**. Phase 7 (preview/attempts) is done. This PRD has no Phase 8 — do not invent multi-question quizzes, 2–6 choices, stored descriptions, or ownership unless a new PRD asks.
 4. Update phase status markers and this Current Status section as work progresses
 5. Add implementation details under Technical Implementation Details as code is written (filenames, commit hashes)
 6. Mark acceptance criteria as complete when features work
@@ -780,16 +835,36 @@ When working with this PRD:
 13. Do not change auth hashing, `users`, or `/api/auth/*`
 14. Follow `.cursor/skills/testing/SKILL.md`, `.cursor/rules/d1.mdc`, `.cursor/rules/auth.mdc`, and `.cursor/rules/nextjs.mdc`
 15. Windows: `npm.cmd` / `npx.cmd`
-16. After each phase, stop for review if the user asked to review per phase. Phase 6 is complete. Do not start unlisted work.
+16. After each phase, stop for review if the user asked to review per phase. Phase 7 is complete. Do not start unlisted work.
 
 ---
 
 ## Current Status
 
 **Last Updated:** 2026-09-10
-**Current Phase:** Phase 6 - Create/Edit MCQ
+**Current Phase:** Phase 7 - Preview & Attempts
 **Status:** COMPLETED
-**Next Steps:** This PRD has no Phase 7. Do not add 2–6 choices, stored descriptions, sessions, or quiz-taking.
+**Next Steps:** This PRD has no Phase 8. Apply `0003_create_attempts.sql` locally (`--local`) after `mcqs` exists. Do not add sessions or a multi-question exam.
+
+**Phase 7 evidence**
+- Red: attempts schema/service missing; Preview still a dialog; actions not exported
+- Green: `npm test` — 19 files, **127 passed** (exit 0)
+- `npm run lint` — exit 0
+- Grading reads `correct` from D1; client sends only `(id, selected)`
+- Attempts have no `user_id` (no session)
+- No new dependencies
+
+**Phase 7 mapping of the “Preview & Attempts” prompt**
+
+| Prompt item | As-built |
+|-------------|----------|
+| Display question and choices | `/mcqs/[id]` via `getMcqForAttemptAction` (no `correct` in props) |
+| Select / submit | Radios A–D + Submit → `submitAttemptAction` |
+| Correct/incorrect feedback | Server `isCorrect` + letter when wrong |
+| Record the attempt | `INSERT INTO attempts` |
+| Try Again / Back | Clears local state / links to `/mcqs` |
+| Loading / error | Checking…; Suspense; 404 |
+| Server-side correctness | `attempt-service` compares to D1; client cannot send `isCorrect` |
 
 **Phase 6 evidence**
 - Red: 10 form tests failed (titles, Question label, Cancel, Save name, saving status)

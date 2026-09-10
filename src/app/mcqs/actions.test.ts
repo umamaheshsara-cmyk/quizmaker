@@ -27,6 +27,7 @@ const {
 	getMcqById,
 	updateMcq,
 	deleteMcq,
+	submitAttempt,
 	McqNotFoundError,
 } = vi.hoisted(() => {
 	class McqNotFoundError extends Error {
@@ -42,6 +43,7 @@ const {
 		getMcqById: vi.fn(),
 		updateMcq: vi.fn(),
 		deleteMcq: vi.fn(),
+		submitAttempt: vi.fn(),
 		McqNotFoundError,
 	};
 });
@@ -61,6 +63,10 @@ vi.mock("@/lib/services/mcq-service", () => ({
 	McqNotFoundError,
 }));
 
+vi.mock("@/lib/services/attempt-service", () => ({
+	submitAttempt,
+}));
+
 import { revalidatePath } from "next/cache";
 import {
 	createMcqAction,
@@ -68,6 +74,8 @@ import {
 	getMcqAction,
 	listMcqsAction,
 	updateMcqAction,
+	getMcqForAttemptAction,
+	submitAttemptAction,
 } from "./actions";
 
 describe("MCQ server actions", () => {
@@ -186,6 +194,56 @@ describe("MCQ server actions", () => {
 	it("deleteMcqAction maps a missing row to Question not found", async () => {
 		deleteMcq.mockRejectedValue(new McqNotFoundError());
 		await expect(deleteMcqAction("missing")).resolves.toEqual({
+			ok: false,
+			error: "Question not found",
+		});
+	});
+
+	it("getMcqForAttemptAction omits the correct letter", async () => {
+		getMcqById.mockResolvedValue(publicMcq);
+		const result = await getMcqForAttemptAction("mcq-1");
+		expect(result).toEqual({
+			ok: true,
+			mcq: {
+				id: "mcq-1",
+				prompt: "What is 2 + 2?",
+				choiceA: "3",
+				choiceB: "4",
+				choiceC: "5",
+				choiceD: "22",
+			},
+		});
+		if (result.ok) {
+			expect(result.mcq).not.toHaveProperty("correct");
+		}
+	});
+
+	it("submitAttemptAction grades on the server and ignores a client isCorrect flag", async () => {
+		submitAttempt.mockResolvedValue({
+			isCorrect: false,
+			correct: "B",
+			attemptId: "att-1",
+		});
+		const result = await submitAttemptAction("mcq-1", "A");
+		expect(submitAttempt).toHaveBeenCalledWith("mcq-1", "A");
+		expect(result).toEqual({
+			ok: true,
+			isCorrect: false,
+			correct: "B",
+		});
+	});
+
+	it("submitAttemptAction rejects an invalid selected letter without calling the service", async () => {
+		await expect(submitAttemptAction("mcq-1", "E")).resolves.toEqual({
+			ok: false,
+			error: "Validation failed",
+		});
+		expect(submitAttempt).not.toHaveBeenCalled();
+	});
+
+	it("submitAttemptAction maps a missing question to Question not found", async () => {
+		submitAttempt.mockRejectedValue(new McqNotFoundError());
+		await expect(submitAttemptAction("missing", "A")).resolves.toEqual({
 			ok: false,
 			error: "Question not found",
 		});
