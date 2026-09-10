@@ -1,0 +1,42 @@
+---
+description: Auth slice conventions — hashing, HTTP, no sessions
+globs: src/app/api/auth/**,src/lib/password.ts,src/lib/password-server.ts,src/lib/services/user-service.ts,src/lib/auth-schemas.ts,src/components/login-form.tsx,src/components/signup-form.tsx,src/components/logout-button.tsx
+alwaysApply: false
+---
+
+# Auth (register / login / logout)
+
+This slice is **shipped**. Source of truth:
+`ai-workspace/register-login-logout_prd.md`. Do not add cookies, JWT, sessions,
+NextAuth, or route guards unless a new PRD asks for them.
+
+## Password pipeline
+
+1. Browser: `sha256Hex(plaintext)` in `src/lib/password.ts` (safe for client).
+2. POST that 64-char lowercase hex as `password`.
+3. Server: `hashPassword` / `verifyPassword` in `src/lib/password-server.ts`
+   (`import "server-only"`). Salted PBKDF2-SHA-256, 100_000 iterations.
+4. Never store plaintext or the client digest as `password_hash`.
+
+Never import `password-server.ts` or `user-service.ts` from `'use client'` files.
+
+## HTTP
+
+- Forms `fetch` App Router route handlers. Not Server Actions.
+- Login is by **username**, not email.
+- Errors: `{ "error": "message" }` via `jsonError` in `src/lib/http.ts`.
+- Register 201 public user; 409 `"Username or email already taken"`.
+- Login 200 public user; 401 `"Invalid username or password"` for unknown user
+  and wrong password (same text).
+- Logout `POST()` always 200 `{ "ok": true }`. No session to destroy.
+- Public user is `{ id, firstName, lastName, username, email }` only.
+
+## D1
+
+Only `src/lib/services/user-service.ts` uses `env.DB`, via
+`getCloudflareContext({ async: true })`. Numbered placeholders (`?1`). Prefer
+`all()` + `results[0]`. Zod-validate bodies in `src/lib/auth-schemas.ts` before
+touching the database.
+
+`/mcqs` is a stub with no auth gate. There is no current-user identity on the
+server until a future PRD adds a session.

@@ -30,8 +30,9 @@ new PRD before building question-bank features.
 - **Zod** for input validation
 - **`server-only`** on modules that touch D1 or server password hashing
 
-Authentication libraries and an AI SDK are not installed yet. Do not write code that
-imports one without adding it first and telling the user.
+There is **no session, cookie, or JWT**. Login is by username. Do not add an auth
+library unless a new PRD asks for it. Auth conventions live in
+`.cursor/rules/auth.mdc`. An AI SDK is not installed yet.
 
 ## Layout
 
@@ -41,7 +42,7 @@ src/components/ui/  shadcn/ui components (generated; avoid hand-editing)
 src/lib/            Shared utilities and services (`src/lib/services/` for domain logic)
 migrations/         D1 SQL migrations (apply locally only)
 ai-workspace/       Technical PRDs and planning documents
-.cursor/rules/      File-scoped conventions
+.cursor/rules/      File-scoped conventions (`d1.mdc`, `auth.mdc`, …)
 .cursor/skills/     Task-specific guidance loaded on demand
 public/             Static assets
 ```
@@ -75,8 +76,9 @@ anything runtime-sensitive with `npm run preview`.
 - **Keep secrets out of the repo.** Local values belong in `.dev.vars`, which is
   gitignored. When adding a variable, also add an empty placeholder to
   `.dev.vars.example`. Production values go in `wrangler secret put`.
-- **Verify before claiming completion.** Run `npm run lint` and `npm run build` and
+- **Verify before claiming completion.** Run `npm test`, `npm run lint`, and `npm run build` and
   report the actual result. Do not describe work as done based on inspection alone.
+  New behavior is test-first (see `.cursor/skills/testing/SKILL.md`).
 - **Say when you are unsure.** A flagged uncertainty is more useful than a confident
   guess that has to be unwound later.
 

@@ -131,7 +131,7 @@ Login body: `{ username, password }` with the same digest. Login is by **usernam
 | 2 | `356c6b5` | Add hashed-password user service with mocked D1 tests. |
 | 3 | `76268f1` | Add register, login, and logout HTTP endpoints. |
 | 4 | `b491e8e` | Add shadcn login and signup pages with an MCQ stub. |
-| 5 | (this commit) | Phase 5 verification + PRD catch-up |
+| 5 | `2bd9639` | Record Phase 5 verification and bring the auth PRD current. |
 
 ---
 
@@ -188,6 +188,19 @@ On this Windows machine, PowerShell blocks `npm.ps1`. Use `npm.cmd` / `npx.cmd`.
 - Keep D1 access inside `src/lib/services/user-service.ts`
 
 Current suite: **10 files, 48 tests**.
+
+| Test file | Proves |
+|-----------|--------|
+| `src/lib/db/users-schema.test.ts` | Migration SQL contract |
+| `src/lib/password.test.ts` | Client SHA-256 hex |
+| `src/lib/password-server.test.ts` | PBKDF2 round-trip, wrong password fails |
+| `src/lib/services/user-service.test.ts` | CUD, find, authenticate, UNIQUE → `UserConflictError` (mocked D1) |
+| `src/app/api/auth/register/route.test.ts` | 201 / 400 / 409 / 500 |
+| `src/app/api/auth/login/route.test.ts` | 200 / 400 / 401 / 500 |
+| `src/app/api/auth/logout/route.test.ts` | 200 `{ ok: true }` |
+| `src/components/login-form.test.tsx` | Hash + POST + navigate; 401 stays |
+| `src/components/signup-form.test.tsx` | Confirm password client-only; 201 navigate; 409 error |
+| `src/components/logout-button.test.tsx` | POST logout then `/login` |
 
 ---
 
@@ -435,6 +448,7 @@ Build originally failed TypeScript on `Uint8Array` vs `BufferSource` in PBKDF2 (
 | `src/app/page.tsx` | Redirect `/` → `/login` |
 | `AGENTS.md` | Stable project facts for every agent chat |
 | `.cursor/rules/d1.mdc` | D1 conventions (`getCloudflareContext({ async: true })`) |
+| `.cursor/rules/auth.mdc` | Hashing, HTTP contract, no sessions |
 | `.cursor/skills/testing/SKILL.md` | Vitest conventions |
 
 ### Code: client hash
@@ -536,6 +550,141 @@ authenticateUser(username: string, passwordSha256: string): Promise<PublicUser |
 
 `updateUser` re-hashes only when `passwordSha256` is provided.
 
+### Code: Zod request bodies (`src/lib/auth-schemas.ts`)
+
+```ts
+export const passwordDigestSchema = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/, "password must be a SHA-256 hex digest");
+
+export const registerBodySchema = z.object({
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().min(1),
+  username: z.string().trim().min(1),
+  email: z.string().trim().email(),
+  password: passwordDigestSchema,
+});
+
+export const loginBodySchema = z.object({
+  username: z.string().trim().min(1),
+  password: passwordDigestSchema,
+});
+```
+
+Route handlers call `safeParse`. Invalid JSON → `jsonError("Invalid JSON", 400)`. Failed Zod → `jsonError("Validation failed", 400)`.
+
+```ts
+export function jsonError(error: string, status: number) {
+  return Response.json({ error }, { status });
+}
+```
+
+### Code: register and login routes
+
+Register maps the JSON `password` field to `createUser({ …, passwordSha256 })`. Login never loads hash/salt itself — it only calls `authenticateUser`.
+
+```ts
+// src/app/api/auth/register/route.ts (shape)
+const user = await createUser({
+  firstName, lastName, username, email,
+  passwordSha256: parsed.data.password,
+});
+return Response.json(user, { status: 201 });
+// UserConflictError → jsonError(error.message, 409)
+// other → jsonError("Server error", 500)
+```
+
+```ts
+// src/app/api/auth/login/route.ts (shape)
+const user = await authenticateUser(parsed.data.username, parsed.data.password);
+if (!user) return jsonError("Invalid username or password", 401);
+return Response.json(user); // 200
+```
+
+```ts
+// src/app/api/auth/logout/route.ts
+export async function POST() {
+  return Response.json({ ok: true });
+}
+```
+
+### Code: user-service SQL (numbered placeholders)
+
+```sql
+INSERT INTO users (id, first_name, last_name, username, email, password_hash, password_salt)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);
+
+UPDATE users
+SET first_name = ?1, last_name = ?2, username = ?3, email = ?4,
+    password_hash = ?5, password_salt = ?6, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?7;
+
+DELETE FROM users WHERE id = ?1;
+
+SELECT id, first_name, last_name, username, email, password_hash, password_salt
+FROM users WHERE username = ?1;
+```
+
+`execute()` and `findFirst()` both use `.prepare(sql).bind(...params).all()`. Do not use `first()`.
+
+### Code: client forms hash then fetch (not Server Actions)
+
+```ts
+const response = await fetch("/api/auth/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    username: trimmedUsername,
+    password: await sha256Hex(password),
+  }),
+});
+if (response.ok) router.push("/mcqs");
+```
+
+Register is the same pattern against `/api/auth/register`, success is **status 201**, body omits confirm-password. Logout: `fetch("/api/auth/logout", { method: "POST" })` then `router.push("/login")`.
+
+Password minimum **8** is measured on plaintext in the browser, not on the digest.
+
+### Code: Vitest mocks the next agent should copy
+
+```ts
+vi.mock("server-only", () => ({}));
+
+vi.mock("@opennextjs/cloudflare", () => ({
+  getCloudflareContext: vi.fn(),
+}));
+
+vi.mock("@/lib/services/user-service", () => ({
+  createUser: vi.fn(),
+  authenticateUser: vi.fn(),
+  UserConflictError: class UserConflictError extends Error {
+    constructor(message = "Username or email already taken") {
+      super(message);
+      this.name = "UserConflictError";
+    }
+  },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+```
+
+In-memory D1 mock in `user-service.test.ts`: match `^SELECT` and `^DELETE` separately — `/FROM users WHERE id = \?1/` also matches `DELETE FROM users WHERE id = ?1`.
+
+### Cursor rules and skills (already in the repo)
+
+| File | When it applies |
+|------|-----------------|
+| `.cursor/rules/auth.mdc` | Auth files (hashing, HTTP, no sessions) |
+| `.cursor/rules/d1.mdc` | D1 / migrations / `wrangler.jsonc` |
+| `.cursor/rules/nextjs.mdc` | App Router |
+| `.cursor/rules/shadcn.mdc` | UI primitives |
+| `.cursor/rules/tailwind.mdc` | Tailwind v4 tokens |
+| `.cursor/rules/cloudflare.mdc` | Workers / OpenNext |
+| `.cursor/skills/testing/SKILL.md` | Vitest TDD |
+| `AGENTS.md` | Stable project facts every chat |
+
 ### Implementation Patterns / rules for the next sprint
 
 - Forms: shadcn `Field`, `FieldLabel`, `FieldError`, `Input`, `Button`, `Card`. No `react-hook-form` unless asked.
@@ -599,7 +748,7 @@ No auth/JWT/session library.
 ### External
 
 - Cloudflare D1 — user persistence
-- Wrangler — local migrations, typegen
+- Wrangler — local migrations, typegen. Worker name in `wrangler.jsonc` is still `aisprints-starter` unless the user renamed it on deploy.
 - Web Crypto — SHA-256 (browser) and PBKDF2 (server)
 
 ### Internal
@@ -697,7 +846,7 @@ No auth/JWT/session library.
 6. Vitest, `zod`, and `server-only` are installed. Ask before adding anything else.
 7. Never `npm run deploy` or `d1 migrations apply --remote` unless the user asks. The user has already deployed this slice themselves.
 8. Do not add cookies, JWTs, NextAuth, or middleware auth unless a new PRD says so.
-9. Follow `.cursor/skills/testing/SKILL.md` and `.cursor/rules/d1.mdc`.
+9. Follow `.cursor/skills/testing/SKILL.md`, `.cursor/rules/d1.mdc`, and `.cursor/rules/auth.mdc`.
 10. Work on `feature/register-login-logout` unless the user starts a new branch for MCQ.
 11. Windows: `npm.cmd` / `npx.cmd`.
 
@@ -715,7 +864,7 @@ No auth/JWT/session library.
 **Last Updated**: 2026-09-10
 **Current Phase**: Phase 5 - Verify
 **Status**: COMPLETED
-**Next Steps**: New PRD for MCQ authoring. Do not extend this slice with sessions or social login unless asked.
+**Next Steps**: New PRD for MCQ authoring from `ai-workspace/TEMPLATE_TECHNICAL_PRD.md`. Do not extend this slice with sessions or social login unless asked. There is still no current-user identity on `/mcqs`.
 
 **Phase 5 evidence**
 - `npm test` — 48 passed (10 files)
