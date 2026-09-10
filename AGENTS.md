@@ -14,8 +14,8 @@ Keep it current. An out-of-date description here misleads every future conversat
 Quiz Maker is a greenfield app for teachers who will share a bank of multiple-choice
 questions. Register, login, and logout are complete (HTTP + UI, Vitest, D1). `/mcqs`
 is still a stub. Auth source of truth: `ai-workspace/register-login-logout_prd.md`.
-MCQ CRUD source of truth: `ai-workspace/mcq-crud-prd.md` (not built yet; start at
-Phase 1). Do not add sessions unless a PRD asks for them.
+MCQ CRUD source of truth: `ai-workspace/mcq-crud-prd.md` (HTTP CRUD exists;
+`/mcqs` UI is still a stub — Phase 4). Do not add sessions unless a PRD asks for them.
 
 ## Stack
 

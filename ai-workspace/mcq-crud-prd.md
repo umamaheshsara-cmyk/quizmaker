@@ -4,7 +4,7 @@ Date last modified: 2026-09-10
 # MCQ CRUD - Technical PRD
 
 **Branch:** `feature/register-login-logout` (MCQ work is currently on this branch; move to `feature/mcq-crud` if the user asks)
-**Status:** Phase 2 COMPLETED; Phases 3–5 PLANNED
+**Status:** Phase 3 COMPLETED; Phases 4–5 PLANNED
 
 This document is the source of truth for the shared multiple-choice question bank. Auth remains specified by `ai-workspace/register-login-logout_prd.md` and `.cursor/rules/auth.mdc`. Do not change hashing, sessions, or auth routes unless this PRD is explicitly updated.
 
@@ -356,7 +356,7 @@ This schema is a single `mcqs` table. There is **no** owner column (shared bank)
 - `src/lib/mcq-schemas.ts`
 - `src/lib/services/mcq-service.ts` + `mcq-service.test.ts`
 
-### Phase 3: MCQ HTTP endpoints - PLANNED
+### Phase 3: MCQ HTTP endpoints - COMPLETED
 
 **Objective:** List, get, create, update, and delete are callable over HTTP.
 
@@ -364,34 +364,37 @@ This schema is a single `mcqs` table. There is **no** owner column (shared bank)
 
 #### Red — write these tests first
 
-Mock `@/lib/services/mcq-service`. Import handlers from each `route.ts`.
+Mock `@/lib/services/mcq-service`. Import handlers from each `route.ts`. First run failed to resolve `./route` in both test files (0 tests collected).
 
 - `src/app/api/mcqs/route.test.ts`
   - GET → 200 `{ mcqs: [...] }` (including empty array)
+  - GET unexpected failure → 500 `"Server error"`
   - POST valid body → 201 public MCQ
-  - POST missing fields / invalid `correct` / duplicate choices → 400
-  - POST invalid JSON → 400
+  - POST missing fields / invalid `correct` / duplicate choices → 400 `"Validation failed"`
+  - POST invalid JSON → 400 `"Invalid JSON"`
+  - POST unexpected failure → 500
 - `src/app/api/mcqs/[id]/route.test.ts`
   - GET existing → 200
   - GET missing → 404 `Question not found`
   - PUT valid → 200
-  - PUT invalid body → 400
+  - PUT invalid body / invalid JSON → 400
   - PUT missing id → 404
   - DELETE existing → 200 `{ ok: true }`
   - DELETE missing → 404
-
-Expected: tests fail because the routes do not exist or return the wrong status/body.
 
 #### Implement
 
 1. `GET`/`POST` in `src/app/api/mcqs/route.ts`
 2. `GET`/`PUT`/`DELETE` in `src/app/api/mcqs/[id]/route.ts`
-3. Map `McqNotFoundError` to 404; Zod failures to 400; unknown errors to 500 `"Server error"`
+3. Zod `safeParse` of `mcqInputSchema` before the service; `McqNotFoundError` → 404; unknown errors → 500 `"Server error"`
+
+Layering is **Client → `fetch` JSON route handler → `mcq-service` → D1**, matching auth. Server Actions were cut in this PRD (no session, same HTTP contract as register/login). No ownership checks, cascade deletes, choice-row repositioning, or quiz-attempt scoring — those are out of scope for this schema.
 
 #### Green — phase complete when
 
-- [ ] `npm test` passes, including Phase 1–3 and auth
-- [ ] Success JSON uses the public camelCase shape
+- [x] `npm test` passes — **13 files, 76 passed** (auth + Phase 2 service + 17 route tests)
+- [x] Success JSON uses the public camelCase shape
+- [x] `npm run lint` — **exit 0**
 
 **Deliverables:**
 
@@ -490,8 +493,8 @@ Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file.
 | `src/lib/mcq-schemas.ts` | Zod create/update bodies | **Phase 2 done** |
 | `src/lib/services/mcq-service.ts` | Persistence | **Phase 2 done** |
 | `src/lib/services/mcq-service.test.ts` | Mocked D1 (11 tests) | **Phase 2 done** |
-| `src/app/api/mcqs/route.ts` | GET list, POST create | Phase 3 |
-| `src/app/api/mcqs/[id]/route.ts` | GET/PUT/DELETE one | Phase 3 |
+| `src/app/api/mcqs/route.ts` | GET list, POST create | **Phase 3 done** |
+| `src/app/api/mcqs/[id]/route.ts` | GET/PUT/DELETE one | **Phase 3 done** |
 | `src/components/mcq-list.tsx` | List + delete confirm | Phase 4 |
 | `src/components/mcq-form.tsx` | Create/edit form | Phase 4 |
 | `src/app/mcqs/page.tsx` | Bank list + logout | Phase 4 (still stub) |
@@ -577,11 +580,11 @@ None. `zod`, `server-only`, and Vitest are already installed. Ask before adding 
 
 - [ ] Local D1 has an `mcqs` table with prompt, four choices, `correct` CHECK A–D, timestamps
 - [x] `users` and auth behavior are unchanged
-- [ ] A teacher can create an MCQ and receive 201 plus the public object
-- [ ] List returns every question, newest first, including `[]` when empty
-- [ ] A teacher can edit an existing MCQ (200) and delete it (`{ ok: true }`)
-- [ ] Missing id on get/update/delete returns 404 `Question not found`
-- [ ] Invalid bodies (blank prompt, invalid `correct`, duplicate choice texts) return 400
+- [x] A teacher can create an MCQ and receive 201 plus the public object
+- [x] List returns every question, newest first, including `[]` when empty
+- [x] A teacher can edit an existing MCQ (200) and delete it (`{ ok: true }`)
+- [x] Missing id on get/update/delete returns 404 `Question not found`
+- [x] Invalid bodies (blank prompt, invalid `correct`, duplicate choice texts) return 400
 - [ ] `/mcqs` shows the bank, empty state, add/edit/delete, and Logout
 - [ ] Successful create/edit returns the teacher to `/mcqs`
 - [ ] No cookies, tokens, sessions, or author columns are introduced
@@ -698,7 +701,7 @@ When working with this PRD:
 
 1. Read Problem, Hypothesis, and Scope (In/Out/Cut) before writing code
 2. **TDD is mandatory** for Phases 1–4: listed tests, `npm test` (red), implement, `npm test` (green)
-3. Implement **only the current phase**. Phase 2 is done. Phase 3 is HTTP only — do not add UI. Do not change auth.
+3. Implement **only the current phase**. Phase 3 HTTP is done. Phase 4 is UI only — do not add Server Actions, sessions, or author columns.
 4. Update phase status markers and this Current Status section as work progresses
 5. Add implementation details under Technical Implementation Details as code is written (filenames, commit hashes)
 6. Mark acceptance criteria as complete when features work
@@ -711,31 +714,31 @@ When working with this PRD:
 13. Do not change auth hashing, `users`, or `/api/auth/*`
 14. Follow `.cursor/skills/testing/SKILL.md`, `.cursor/rules/d1.mdc`, `.cursor/rules/auth.mdc`, and `.cursor/rules/nextjs.mdc`
 15. Windows: `npm.cmd` / `npx.cmd`
-16. After each phase, stop for review if the user asked to review each phase. Phase 2 is complete; wait before Phase 3.
+16. After each phase, stop for review if the user asked to review each phase. Phase 3 is complete; wait before Phase 4.
 
 ---
 
 ## Current Status
 
 **Last Updated:** 2026-09-10
-**Current Phase:** Phase 2 - Data Access & Validation
+**Current Phase:** Phase 3 - MCQ HTTP endpoints
 **Status:** COMPLETED
-**Next Steps:** Phase 3 — HTTP endpoints (`GET`/`POST /api/mcqs`, `GET`/`PUT`/`DELETE /api/mcqs/[id]`). Do not start Phase 3 until asked. Do not add UI.
+**Next Steps:** Phase 4 — replace the `/mcqs` stub with list/create/edit/delete UI. Do not start Phase 4 until asked. Do not add Server Actions or sessions.
 
-**Phase 2 evidence**
-- Red: `mcq-service.test.ts` failed to resolve `./mcq-service`
-- Green: `npm test` — 11 files, **59 passed** (exit 0)
+**Phase 3 evidence**
+- Red: `route.test.ts` files failed to resolve `./route`
+- Green: `npm test` — 13 files, **76 passed** (exit 0)
 - `npm run lint` — exit 0
 - No new dependencies
-- `/mcqs` is still the auth stub; no API routes yet
+- `/mcqs` is still the auth stub (UI is Phase 4)
 
-**Phase 2 mapping of D1/service rules**
+**Phase 3 mapping of the generic “service layer” prompt**
 
 | Prompt item | As-built |
 |-------------|----------|
-| Numbered placeholders | Insert `?1`–`?7`; update `?1`–`?7`; delete `?1` |
-| Ownership | No `owner`/`user_id` column (PRD cut). `mcq-service.ts` is the only module that reads `mcqs` |
-| Error handling | Zod on create/update; `McqNotFoundError` on missing update/delete |
-| Choice ordering | Public object `choiceA`–`choiceD` maps from `choice_a`–`choice_d`; list is newest first |
-| Boolean mapping | N/A — `correct` is `'A'\|'B'\|'C'\|'D'`, not an INTEGER flag |
-| Cascade | N/A — single table, no child rows to cascade |
+| Creation / retrieval / listing / update / delete | `POST`/`GET`/`PUT`/`DELETE` JSON routes calling the Phase 2 service |
+| Layering | Client `fetch` → App Router `route.ts` → `mcq-service` → D1 (not Server Actions) |
+| Ownership checks | None — shared ungated bank (PRD cut) |
+| Choice replacement / repositioning | Full replace of A–D + `correct` on PUT; no child choice rows |
+| Cascade deletion | N/A — deleting the MCQ row is the whole record |
+| Server-side attempt correctness | Out of scope — no quiz-taking / attempts table |
