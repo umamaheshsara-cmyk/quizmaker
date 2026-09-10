@@ -1,12 +1,20 @@
+import { Suspense } from "react";
+
 import { LogoutButton } from "@/components/logout-button";
-import { McqList } from "@/components/mcq-list";
+import { McqList, McqListFallback } from "@/components/mcq-list";
 import { listMcqsAction } from "@/app/mcqs/actions";
 
-export default async function McqsPage() {
+export const dynamic = "force-dynamic";
+
+async function McqBank() {
 	const result = await listMcqsAction();
 	const initialMcqs = result.ok ? result.mcqs : [];
 	const initialError = result.ok ? null : result.error;
 
+	return <McqList initialMcqs={initialMcqs} initialError={initialError} />;
+}
+
+export default function McqsPage() {
 	return (
 		<main className="mx-auto flex min-h-svh w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
 			<div className="flex items-start justify-between gap-4">
@@ -22,7 +30,9 @@ export default async function McqsPage() {
 				</div>
 				<LogoutButton />
 			</div>
-			<McqList initialMcqs={initialMcqs} initialError={initialError} />
+			<Suspense fallback={<McqListFallback />}>
+				<McqBank />
+			</Suspense>
 		</main>
 	);
 }

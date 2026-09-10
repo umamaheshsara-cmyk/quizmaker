@@ -23,6 +23,12 @@ McqList / McqForm   ('use client')
 JSON route handlers under `src/app/api/mcqs/` remain for the HTTP contract.
 UI mutations go through Server Actions. Actions must not use `env.DB`.
 
+The `/mcqs` dashboard loads the list in a Server Component (`force-dynamic`)
+and passes `initialMcqs` into `McqList`. Do not fetch `/api/mcqs` from the
+client or `setState` in `useEffect` to hydrate the table. Row actions are
+Preview (dialog), Edit (`/mcqs/[id]/edit`), and Delete (confirm dialog).
+Create Question goes to `/mcqs/new`. Logout stays `POST /api/auth/logout`.
+
 ## Validation
 
 `mcqInputSchema`: trimmed prompt (1–2000), choices A–D (1–500, pairwise

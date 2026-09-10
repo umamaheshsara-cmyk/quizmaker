@@ -4,7 +4,7 @@ Date last modified: 2026-09-10
 # MCQ CRUD - Technical PRD
 
 **Branch:** `feature/register-login-logout` (MCQ work is currently on this branch; move to `feature/mcq-crud` if the user asks)
-**Status:** Phase 4 COMPLETED; Phase 5 PLANNED
+**Status:** Phase 5 COMPLETED
 
 This document is the source of truth for the shared multiple-choice question bank. Auth remains specified by `ai-workspace/register-login-logout_prd.md` and `.cursor/rules/auth.mdc`. Do not change hashing, sessions, or auth routes unless this PRD is explicitly updated.
 
@@ -12,9 +12,9 @@ This document is the source of truth for the shared multiple-choice question ban
 
 ## Overview/Problem
 
-Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`, which is still a stub: heading, placeholder copy, and Logout. There is no table for questions, no service, no HTTP API, and no way to create, list, edit, or delete an MCQ.
+Quiz Maker exists so teachers can collaborate on a shared bank of multiple-choice questions. Register, login, and logout are already shipped. After a successful register or login, teachers land on `/mcqs`. Phases 2–5 shipped the shared four-choice bank: D1-backed service, JSON API, Server Actions, create/edit forms, and a dashboard list with Preview, Edit, and Delete.
 
-This slice turns `/mcqs` into a working test-bank: four-choice questions that any teacher who can open the page can add, browse, update, and remove.
+This slice is the working test-bank: four-choice questions that any teacher who can open the page can add, browse, update, and remove.
 
 ---
 
@@ -237,13 +237,15 @@ Keep auth pages unchanged. Keep `/` → `/login`.
 
 - Heading that this is the shared multiple-choice question bank (replace the stub “coming later” copy)
 - `LogoutButton` (existing) in the header, same as today
-- “Add question” control that navigates to `/mcqs/new`
-- Table of questions: prompt (truncated if long), correct letter, Edit, Delete
-- Empty state when `mcqs` is `[]`: short copy plus the Add control. Do not render an empty table body as the only hint.
-- Delete asks for confirmation (shadcn `dialog`) then `DELETE /api/mcqs/[id]` and refreshes the list
+- “Create Question” control that navigates to `/mcqs/new`
+- Table of questions: prompt (truncated if long), correct letter, Preview, Edit, Delete
+- Preview opens a read-only dialog with the full prompt, choices A–D, and a Correct badge on the right letter
+- Empty state when `mcqs` is `[]`: short copy plus the Create Question control. Do not render an empty table body as the only hint.
+- Loading: `Suspense` fallback on first paint; `role="status"` while the list refreshes after delete
+- Delete asks for confirmation (shadcn `dialog`) then `deleteMcqAction` and refreshes the list
 - Edit navigates to `/mcqs/[id]/edit`
-- Load the list with `GET /api/mcqs` from a `'use client'` component (do not call `mcq-service` from client code)
-- Show a form-level / page-level error if the list request fails
+- Load the list in a Server Component via `listMcqsAction` and pass `initialMcqs` / `initialError` into `McqList`. Do not `fetch` `/api/mcqs` from the client and do not `setState` in `useEffect` to load the list
+- Show a page-level error if the list action fails
 
 #### Create (`/mcqs/new`)
 
@@ -268,7 +270,7 @@ Keep auth pages unchanged. Keep `/` → `/login`.
 
 ## Implementation Phases
 
-Each of Phases 1–4 is a TDD loop. Phase 5 is the verification gate only. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
+Each of Phases 1–5 is a TDD loop (Phase 5 also records lint). This PRD has **no Phase 6**. **Do not start the next phase while this phase’s tests are red.** Stop at the end of each phase for user review if they asked to review per phase.
 
 ### Phase 1: Database Foundation - PLANNED
 
@@ -443,25 +445,43 @@ JSON `/api/mcqs` routes from Phase 3 stay. The UI does not `fetch` them. No owne
 - List / new / edit pages
 - `.cursor/rules/mcq.mdc`
 
-### Phase 5: Verify - PLANNED
+### Phase 5: Dashboard MCQ List - COMPLETED
 
-**Objective:** Prove the slice with the full suite, lint, build, and a real browser pass.
+**Objective:** `/mcqs` is the teacher dashboard: table, Create Question, row actions Edit / Preview / Delete, delete confirmation, and loading / empty / error states. Auth and hydration stay as Phase 4: no session, list loaded on the server, Logout still uses `POST /api/auth/logout`.
 
-This phase does **not** add a new red test list.
+Do not redo Phases 1–4. Do not add a Phase 6 (preview route, quizzes, ownership). No new dependencies.
 
-#### Tasks
+**TDD gate:** Phase 5 is not complete until the new list tests are green and `npm test` / `npm run lint` exit 0.
 
-1. `npm test` — entire suite green (auth + MCQ). If anything is red, go back
-2. `npm run lint` and `npm run build`; report actual results
-3. In the browser: empty list, create, list shows the row, edit, delete, validation errors, 404 edit URL
-4. Confirm login → `/mcqs` still works; logout still returns to `/login`
-5. Prefer `npm run preview` for anything that touches D1 / Workers
+#### Red — write these tests first (`src/components/mcq-list.test.tsx`)
+
+- Create Question links to `/mcqs/new`
+- Preview opens a dialog with the full prompt, A–D, and a Correct badge
+- Loading `role="status"` while the list refreshes after a confirmed delete
+- Existing empty, error, Edit, and delete-confirm cases stay green
+
+First run after those tests: Create Question / Preview / loading failed (link still said “Add question”; no Preview button; no status).
+
+#### Implement
+
+1. `McqList`: Create Question, Preview dialog (shadcn `Dialog` + `Badge`), `role="status"` while `listMcqsAction` refreshes
+2. `McqListFallback` + `Suspense` around the server `McqBank` loader so first paint can show loading without a client `useEffect`
+3. Keep `LogoutButton` outside the suspense boundary so logout hydration is unchanged
+4. Do not `fetch` `/api/mcqs` from the client
 
 #### Green — phase complete when
 
-- [ ] `npm test` exits 0 (record file and test counts)
-- [ ] Lint and build succeed (recorded)
-- [ ] Browser happy path and main error paths verified
+- [x] `npm test` — **16 files, 104 passed** (exit 0). One earlier full-suite run had two `signup-form` timeouts; a clean re-run passed all 104.
+- [x] `npm run lint` — **exit 0**
+- [x] `npm run build` — **exit 0** (Next.js 16.2.12; first run failed typecheck on `deleteMcqAction`, then succeeded after the return-type fix)
+- [x] No `react-hook-form`, no new dependencies, no auth/session changes
+- [ ] Browser / `npm run preview` — not run here (no browser tools in this session)
+
+**Deliverables:**
+
+- `src/components/mcq-list.tsx` — dashboard table + Preview + Create Question + loading/empty/error
+- `src/app/mcqs/page.tsx` — `Suspense` + server-loaded `McqBank`
+- Updated `mcq-list.test.tsx`
 
 ---
 
@@ -495,9 +515,9 @@ Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file (t
 | `src/app/api/mcqs/route.ts` | GET list, POST create | **Phase 3 done** |
 | `src/app/api/mcqs/[id]/route.ts` | GET/PUT/DELETE one | **Phase 3 done** |
 | `src/app/mcqs/actions.ts` | Server Actions | **Phase 4 done** |
-| `src/components/mcq-list.tsx` | List + delete confirm | **Phase 4 done** |
+| `src/components/mcq-list.tsx` | Dashboard list, Preview, Create Question, loading | **Phase 5 done** |
 | `src/components/mcq-form.tsx` | Create/edit form | **Phase 4 done** |
-| `src/app/mcqs/page.tsx` | Bank list + logout | **Phase 4 done** |
+| `src/app/mcqs/page.tsx` | Bank list + logout + Suspense | **Phase 5 done** |
 | `src/app/mcqs/new/page.tsx` | Create | **Phase 4 done** |
 | `src/app/mcqs/[id]/edit/page.tsx` | Edit | **Phase 4 done** |
 | `.cursor/rules/mcq.mdc` | Conventions | **Phase 4 done** |
@@ -585,12 +605,13 @@ None. `zod`, `server-only`, and Vitest are already installed. Ask before adding 
 - [x] A teacher can edit an existing MCQ (200) and delete it (`{ ok: true }`)
 - [x] Missing id on get/update/delete returns 404 `Question not found`
 - [x] Invalid bodies (blank prompt, invalid `correct`, duplicate choice texts) return 400
-- [x] `/mcqs` shows the bank, empty state, add/edit/delete, and Logout
+- [x] `/mcqs` shows the bank, empty/loading/error states, Create Question, Preview/Edit/Delete, and Logout
 - [x] Successful create/edit returns the teacher to `/mcqs`
 - [ ] No cookies, tokens, sessions, or author columns are introduced
 - [x] Each implementation phase was built test-first
 - [x] `npm test` (Vitest) passes for the whole suite (auth + MCQ)
-- [ ] `npm run lint` and `npm run build` succeed
+- [x] `npm run lint` and `npm run build` succeed
+- [ ] Browser happy path (`npm run preview`) still outstanding in this session
 
 ---
 
@@ -661,7 +682,7 @@ There is no production traffic requirement for this teaching demo.
 - **Mitigation:** Keep delete behind a confirm dialog. Do not add auth gates in this slice. A later session sprint can add permissions.
 
 - **Risk:** Long prompts blow up the table layout.
-- **Mitigation:** Truncate prompt in the table; full text on the edit form.
+- **Mitigation:** Truncate prompt in the table; full text in Preview and on the edit form.
 
 ---
 
@@ -693,6 +714,12 @@ Add entries here when bugs are found and fixed during implementation.
 **Cause:** Distinct-choice rule implemented only in the form.
 **Solution:** Enforce in Zod (`mcq-schemas.ts`) so POST/PUT cannot skip it.
 
+### `deleteMcqAction` fails `next build` typecheck
+
+**Problem:** `Type '{ ok: true; }' is not assignable to type 'McqActionResult<Record<string, never>>'`.
+**Cause:** `{ ok: true } & Record<string, never>` makes `ok` incompatible with the empty index signature.
+**Solution:** Type delete success as `{ ok: true } | McqActionError` instead of intersecting with `Record<string, never>`.
+
 ---
 
 ## Notes for AI Agents
@@ -700,8 +727,8 @@ Add entries here when bugs are found and fixed during implementation.
 When working with this PRD:
 
 1. Read Problem, Hypothesis, and Scope (In/Out/Cut) before writing code
-2. **TDD is mandatory** for Phases 1–4: listed tests, `npm test` (red), implement, `npm test` (green)
-3. Implement **only the current phase**. Phase 4 is done (Server Actions + UI). Phase 5 is verify only — lint/build/browser; do not add features.
+2. **TDD is mandatory** for Phases 1–5: listed tests, `npm test` (red), implement, `npm test` (green)
+3. Implement **only the current phase**. Phase 5 (dashboard list) is done. This PRD has no Phase 6 — do not invent quizzes, ownership, or a separate preview route unless a new PRD asks.
 4. Update phase status markers and this Current Status section as work progresses
 5. Add implementation details under Technical Implementation Details as code is written (filenames, commit hashes)
 6. Mark acceptance criteria as complete when features work
@@ -714,16 +741,36 @@ When working with this PRD:
 13. Do not change auth hashing, `users`, or `/api/auth/*`
 14. Follow `.cursor/skills/testing/SKILL.md`, `.cursor/rules/d1.mdc`, `.cursor/rules/auth.mdc`, and `.cursor/rules/nextjs.mdc`
 15. Windows: `npm.cmd` / `npx.cmd`
-16. After each phase, stop for review if the user asked to review each phase. Phase 4 is complete; wait before Phase 5.
+16. After each phase, stop for review if the user asked to review per phase. Phase 5 is complete. Do not start unlisted work.
 
 ---
 
 ## Current Status
 
 **Last Updated:** 2026-09-10
-**Current Phase:** Phase 4 - Server Actions and MCQ UI
+**Current Phase:** Phase 5 - Dashboard MCQ List
 **Status:** COMPLETED
-**Next Steps:** Phase 5 — verify (`npm test`, lint, build, browser). Do not start Phase 5 until asked. Do not add sessions.
+**Next Steps:** This PRD has no Phase 6. Do not add sessions, ownership, or quiz-taking. A real browser / `npm run preview` pass is still outstanding if the user wants it.
+
+**Phase 5 evidence**
+- Red: Create Question / Preview / loading tests failed against the Phase 4 list
+- Green: `npm test` — 16 files, **104 passed** (exit 0)
+- `npm run lint` — exit 0
+- `npm run build` — exit 0 after typing delete success as `{ ok: true } | McqActionError`
+- List still hydrates from server `initialMcqs` (no client `useEffect` load); page is `force-dynamic` so D1 is not snapshotted at build time
+- Auth unchanged: login/register still `fetch` + JSON; logout still `POST /api/auth/logout`
+- No new dependencies
+
+**Phase 5 mapping of the “Dashboard MCQ List” prompt**
+
+| Prompt item | As-built |
+|-------------|----------|
+| Table | Prompt (truncated to 80), correct letter, actions |
+| Create Question | Link to `/mcqs/new` |
+| Edit / Preview / Delete | Edit → `/mcqs/[id]/edit`; Preview dialog; Delete confirm dialog |
+| Delete confirmation | Existing “Delete this question?” dialog then `deleteMcqAction` |
+| Loading / empty / error | `Suspense` + refresh `role="status"`; empty copy; `initialError` alert |
+| Auth / hydration | `LogoutButton` kept; no session; no client list `fetch` |
 
 **Phase 4 evidence**
 - Red: `actions.test.ts` failed to resolve `./actions`

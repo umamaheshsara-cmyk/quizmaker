@@ -95,7 +95,7 @@ export async function updateMcqAction(
 
 export async function deleteMcqAction(
 	id: unknown,
-): Promise<McqActionResult<Record<string, never>>> {
+): Promise<{ ok: true } | McqActionError> {
 	const parsedId = mcqIdSchema.safeParse(id);
 	if (!parsedId.success) {
 		return fail("Validation failed");

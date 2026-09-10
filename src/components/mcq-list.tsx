@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { deleteMcqAction, listMcqsAction } from "@/app/mcqs/actions";
 import type { PublicMcq } from "@/lib/mcq-schemas";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Dialog,
@@ -25,6 +26,13 @@ import {
 
 const PROMPT_PREVIEW_LENGTH = 80;
 
+const CHOICES = [
+	{ letter: "A", key: "choiceA" },
+	{ letter: "B", key: "choiceB" },
+	{ letter: "C", key: "choiceC" },
+	{ letter: "D", key: "choiceD" },
+] as const;
+
 function previewPrompt(prompt: string) {
 	if (prompt.length <= PROMPT_PREVIEW_LENGTH) {
 		return prompt;
@@ -37,21 +45,38 @@ type McqListProps = {
 	initialError?: string | null;
 };
 
+export function McqListFallback() {
+	return (
+		<p className="text-muted-foreground" role="status">
+			Loading questions…
+		</p>
+	);
+}
+
 export function McqList({ initialMcqs, initialError = null }: McqListProps) {
 	const [mcqs, setMcqs] = useState(initialMcqs);
 	const [error, setError] = useState(initialError);
 	const [pendingId, setPendingId] = useState<string | null>(null);
+	const [previewId, setPreviewId] = useState<string | null>(null);
 	const [deleting, setDeleting] = useState(false);
+	const [refreshing, setRefreshing] = useState(false);
+
+	const previewMcq = mcqs.find((mcq) => mcq.id === previewId) ?? null;
 
 	async function refresh() {
-		const result = await listMcqsAction();
-		if (!result.ok) {
-			setError(result.error);
-			setMcqs([]);
-			return;
+		setRefreshing(true);
+		try {
+			const result = await listMcqsAction();
+			if (!result.ok) {
+				setError(result.error);
+				setMcqs([]);
+				return;
+			}
+			setError(null);
+			setMcqs(result.mcqs);
+		} finally {
+			setRefreshing(false);
 		}
-		setError(null);
-		setMcqs(result.mcqs);
 	}
 
 	async function confirmDelete() {
@@ -77,17 +102,18 @@ export function McqList({ initialMcqs, initialError = null }: McqListProps) {
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center justify-end">
 				<Link href="/mcqs/new" className={buttonVariants()}>
-					Add question
+					Create Question
 				</Link>
 			</div>
+			{refreshing ? <McqListFallback /> : null}
 			{error ? (
 				<p className="text-destructive" role="alert">
 					{error}
 				</p>
 			) : null}
-			{mcqs.length === 0 && !error ? (
+			{mcqs.length === 0 && !error && !refreshing ? (
 				<p className="text-muted-foreground">
-					No questions in the shared bank yet. Add the first one to get
+					No questions in the shared bank yet. Create the first one to get
 					started.
 				</p>
 			) : null}
@@ -109,6 +135,13 @@ export function McqList({ initialMcqs, initialError = null }: McqListProps) {
 								<TableCell>{mcq.correct}</TableCell>
 								<TableCell className="text-right">
 									<div className="flex justify-end gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setPreviewId(mcq.id)}
+										>
+											Preview
+										</Button>
 										<Link
 											href={`/mcqs/${mcq.id}/edit`}
 											className={buttonVariants({
@@ -132,6 +165,52 @@ export function McqList({ initialMcqs, initialError = null }: McqListProps) {
 					</TableBody>
 				</Table>
 			) : null}
+			<Dialog
+				open={previewMcq !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setPreviewId(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-lg">
+					<DialogHeader>
+						<DialogTitle>Preview question</DialogTitle>
+						<DialogDescription>
+							Read-only view of this shared-bank question.
+						</DialogDescription>
+					</DialogHeader>
+					{previewMcq ? (
+						<div className="flex flex-col gap-3">
+							<p className="whitespace-pre-wrap">{previewMcq.prompt}</p>
+							<ul className="flex flex-col gap-2">
+								{CHOICES.map(({ letter, key }) => (
+									<li
+										key={letter}
+										className="flex items-center gap-2 whitespace-normal"
+									>
+										<span>
+											{letter}. {previewMcq[key]}
+										</span>
+										{previewMcq.correct === letter ? (
+											<Badge>Correct</Badge>
+										) : null}
+									</li>
+								))}
+							</ul>
+						</div>
+					) : null}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setPreviewId(null)}
+						>
+							Close
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 			<Dialog
 				open={pendingId !== null}
 				onOpenChange={(open) => {
