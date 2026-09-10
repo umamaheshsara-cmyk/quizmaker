@@ -12,10 +12,10 @@ Keep it current. An out-of-date description here misleads every future conversat
 -->
 
 Quiz Maker is a greenfield app for teachers who will share a bank of multiple-choice
-questions. Register, login, and logout exist (HTTP + UI). The `/mcqs` page is a stub;
-MCQ authoring is not built yet. The technical PRD in
-`ai-workspace/register-login-logout_prd.md` is the source of truth for what is being
-built and for the current phase of work.
+questions. Register, login, and logout are complete (HTTP + UI, Vitest, D1). `/mcqs`
+is a stub; MCQ authoring is the next slice. The technical PRD in
+`ai-workspace/register-login-logout_prd.md` is the source of truth for auth. Write a
+new PRD before building question-bank features.
 
 ## Stack
 

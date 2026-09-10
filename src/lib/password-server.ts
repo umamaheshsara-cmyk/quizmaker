@@ -41,7 +41,7 @@ async function deriveHash(
 	const bits = await crypto.subtle.deriveBits(
 		{
 			name: "PBKDF2",
-			salt,
+			salt: toArrayBuffer(salt),
 			iterations: PBKDF2_ITERATIONS,
 			hash: "SHA-256",
 		},
@@ -53,6 +53,13 @@ async function deriveHash(
 
 function toHex(bytes: Uint8Array): string {
 	return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+	return bytes.buffer.slice(
+		bytes.byteOffset,
+		bytes.byteOffset + bytes.byteLength,
+	) as ArrayBuffer;
 }
 
 function fromHex(hex: string): Uint8Array {

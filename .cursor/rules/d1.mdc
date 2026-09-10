@@ -19,8 +19,8 @@ before any remote use.
 
 ## Access
 
-- Reach the binding through `getCloudflareContext()` from `@opennextjs/cloudflare`,
-  then use `env.DB`.
+- Reach the binding through `getCloudflareContext({ async: true })` from
+  `@opennextjs/cloudflare`, then use `env.DB`.
 - Centralize queries in `src/lib/` rather than calling `env.DB` from components or
   route handlers directly. Create the module the first time it is needed instead of
   assuming one already exists.
