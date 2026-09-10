@@ -24,5 +24,13 @@ export const mcqInputSchema = z
 		{ message: "Choices must be unique" },
 	);
 
+export const mcqIdSchema = z.string().trim().min(1);
+
 export type McqInput = z.infer<typeof mcqInputSchema>;
 export type McqCorrect = McqInput["correct"];
+
+export type PublicMcq = McqInput & {
+	id: string;
+	createdAt: string;
+	updatedAt: string;
+};

@@ -4,7 +4,7 @@ Date last modified: 2026-09-10
 # MCQ CRUD - Technical PRD
 
 **Branch:** `feature/register-login-logout` (MCQ work is currently on this branch; move to `feature/mcq-crud` if the user asks)
-**Status:** Phase 3 COMPLETED; Phases 4–5 PLANNED
+**Status:** Phase 4 COMPLETED; Phase 5 PLANNED
 
 This document is the source of truth for the shared multiple-choice question bank. Auth remains specified by `ai-workspace/register-login-logout_prd.md` and `.cursor/rules/auth.mdc`. Do not change hashing, sessions, or auth routes unless this PRD is explicitly updated.
 
@@ -48,7 +48,7 @@ We believe that a simple shared MCQ bank with HTTP CRUD, a four-choice schema, a
 
 ### Cut
 
-- **Server Actions for MCQ forms** — Auth already uses client `fetch` + JSON route handlers. This slice keeps that HTTP contract so route tests, `jsonError`, and Zod-in-the-handler stay consistent. Next.js prefers Server Actions in `.cursor/rules/nextjs.mdc`; do not switch unless the user asks.
+- **Server Actions for auth forms** — Auth still uses client `fetch` + JSON route handlers so the password can be hashed in the browser. **MCQ UI uses Server Actions** (`src/app/mcqs/actions.ts`) wrapping the service. JSON `/api/mcqs` remains for the HTTP contract.
 - **Author / `created_by` / FK to `users`** — There is still no session, so the server cannot know which teacher is writing. A client-supplied username would be spoofable. The bank is shared and ungated, same as the current `/mcqs` stub.
 - **Normalized `choices` table** — Four columns on `mcqs` is enough for this teaching slice. A child table can wait until the product needs N options.
 - **Auth-gated `/mcqs` or `/api/mcqs`** — Without cookies/tokens there is nothing to check. Anyone with the URL can list and mutate the bank. That is intentional and must stay documented, not “fixed” with a fake header.
@@ -401,50 +401,47 @@ Layering is **Client → `fetch` JSON route handler → `mcq-service` → D1**, 
 - `src/app/api/mcqs/route.ts` + `route.test.ts`
 - `src/app/api/mcqs/[id]/route.ts` + `route.test.ts`
 
-### Phase 4: MCQ UI - PLANNED
+### Phase 4: Server Actions and MCQ UI - COMPLETED
 
-**Objective:** A teacher can manage the bank in the browser from `/mcqs`.
+**Objective:** Teachers manage the bank from `/mcqs`. Mutations go **Client → Server Action → `mcq-service` → D1**. Actions never touch `env.DB`.
 
-**TDD gate:** Phase 4 is not complete until the client-component tests are green.
+**TDD gate:** Phase 4 is not complete until action tests and client-component tests are green.
 
 #### Red — write these tests first
 
-Extract interactive UI into `'use client'` components. Mock `fetch` and `useRouter`.
-
-- `src/components/mcq-list.test.tsx`
-  - Renders rows from a successful GET
-  - Empty state when `mcqs` is `[]`
-  - Add control goes to `/mcqs/new`
-  - Edit control goes to `/mcqs/[id]/edit`
-  - Delete confirms then DELETEs and the row is gone (or list refetched)
-  - Failed GET shows an error
-- `src/components/mcq-form.test.tsx` (shared create/edit)
-  - Renders prompt, A–D, and a correct-answer control
-  - Client validation blocks empty prompt / empty choice / duplicate choices / missing correct (no POST)
-  - Create mode POSTs `/api/mcqs` then navigates to `/mcqs`
-  - Edit mode loads GET `/api/mcqs/[id]`, PUTs, then navigates to `/mcqs`
-  - 400 shows the error; 404 on edit shows not-found
-
-Expected: tests fail because the components do not exist or do not fetch/navigate yet.
+- `src/app/mcqs/actions.test.ts` — first run failed to resolve `./actions`
+  - `createMcqAction` / `updateMcqAction` / `deleteMcqAction` / `listMcqsAction` / `getMcqAction`
+  - Zod 400-equivalent `{ ok: false, error: "Validation failed" }` without calling the service
+  - `McqNotFoundError` → `{ ok: false, error: "Question not found" }`
+  - Success results; `revalidatePath("/mcqs")` on writes
+  - Create input has no `ownerId` / `userId` (shared bank)
+- `src/components/mcq-list.test.tsx` — mock actions, not `fetch`
+- `src/components/mcq-form.test.tsx` — client validation blocks empty/duplicate choices; create/update actions; 404 edit state
 
 #### Implement
 
-1. Client list + form components using shadcn `Table`, `Field`, `Input`, `Button`, `Dialog`, `Card`
-2. Replace stub copy in `src/app/mcqs/page.tsx`; keep `LogoutButton`
-3. `src/app/mcqs/new/page.tsx` and `src/app/mcqs/[id]/edit/page.tsx` compose the form
-4. Do not `render()` Server Component pages in Vitest
+1. `src/app/mcqs/actions.ts` (`"use server"`) wrapping the Phase 2 service + `mcqInputSchema` / `mcqIdSchema`
+2. List/new/edit pages as Server Components that call list/get actions, then pass data into client forms
+3. `McqList` / `McqForm` using shadcn `Table`, `Field`, `Input`, `Button`, `Dialog`, `Card`
+4. Replace stub copy on `/mcqs`; keep `LogoutButton`
+5. `.cursor/rules/mcq.mdc`
+
+JSON `/api/mcqs` routes from Phase 3 stay. The UI does not `fetch` them. No ownership checks (no session). No quiz-attempt scoring.
 
 #### Green — phase complete when
 
-- [ ] `npm test` passes, including Phase 1–4 and auth
-- [ ] `/mcqs` is no longer a stub
-- [ ] No `react-hook-form`
+- [x] `npm test` — **16 files, 102 passed**
+- [x] `/mcqs` is no longer a stub
+- [x] No `react-hook-form`
+- [x] `npm run lint` — **exit 0**
+- [x] Server Actions do not import `getCloudflareContext` / `env.DB`
 
 **Deliverables:**
 
+- `src/app/mcqs/actions.ts` + `actions.test.ts`
 - Client MCQ components + colocated `*.test.tsx`
 - List / new / edit pages
-- `.cursor/rules/mcq.mdc` pinning HTTP contract, shared bank, no sessions (same idea as `auth.mdc`)
+- `.cursor/rules/mcq.mdc`
 
 ### Phase 5: Verify - PLANNED
 
@@ -474,13 +471,15 @@ This phase does **not** add a new red test list.
 
 ```
 McqList / McqForm     ('use client')
-  fetch JSON
-    route.ts          Zod (src/lib/mcq-schemas.ts)
+  Server Actions      src/app/mcqs/actions.ts
+    Zod               src/lib/mcq-schemas.ts
       mcq-service.ts  src/lib/services/mcq-service.ts  ← D1 for questions
         D1            getCloudflareContext({ async: true })
 ```
 
-Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file.
+JSON `src/app/api/mcqs/*` still exists (Phase 3). The UI does not `fetch` those routes.
+
+Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file (types from `mcq-schemas.ts` are safe).
 
 `user-service.ts` remains the only module that reads `users`. `mcq-service.ts` is the only module that reads `mcqs`.
 
@@ -490,17 +489,18 @@ Never import `mcq-service.ts` or `user-service.ts` from a `'use client'` file.
 |------|------|--------|
 | `migrations/0002_create_mcqs.sql` | `mcqs` table | Phase 1 (not in this workspace at Phase 2) |
 | `src/lib/db/mcqs-schema.test.ts` | Migration contract | Phase 1 |
-| `src/lib/mcq-schemas.ts` | Zod create/update bodies | **Phase 2 done** |
+| `src/lib/mcq-schemas.ts` | Zod create/update bodies + `PublicMcq` | **Phase 2/4 done** |
 | `src/lib/services/mcq-service.ts` | Persistence | **Phase 2 done** |
 | `src/lib/services/mcq-service.test.ts` | Mocked D1 (11 tests) | **Phase 2 done** |
 | `src/app/api/mcqs/route.ts` | GET list, POST create | **Phase 3 done** |
 | `src/app/api/mcqs/[id]/route.ts` | GET/PUT/DELETE one | **Phase 3 done** |
-| `src/components/mcq-list.tsx` | List + delete confirm | Phase 4 |
-| `src/components/mcq-form.tsx` | Create/edit form | Phase 4 |
-| `src/app/mcqs/page.tsx` | Bank list + logout | Phase 4 (still stub) |
-| `src/app/mcqs/new/page.tsx` | Create | Phase 4 |
-| `src/app/mcqs/[id]/edit/page.tsx` | Edit | Phase 4 |
-| `.cursor/rules/mcq.mdc` | Conventions after the slice exists | Phase 4 |
+| `src/app/mcqs/actions.ts` | Server Actions | **Phase 4 done** |
+| `src/components/mcq-list.tsx` | List + delete confirm | **Phase 4 done** |
+| `src/components/mcq-form.tsx` | Create/edit form | **Phase 4 done** |
+| `src/app/mcqs/page.tsx` | Bank list + logout | **Phase 4 done** |
+| `src/app/mcqs/new/page.tsx` | Create | **Phase 4 done** |
+| `src/app/mcqs/[id]/edit/page.tsx` | Edit | **Phase 4 done** |
+| `.cursor/rules/mcq.mdc` | Conventions | **Phase 4 done** |
 
 Reuse: `src/lib/http.ts` (`jsonError`), `src/components/logout-button.tsx`, shadcn table/dialog/field.
 
@@ -585,11 +585,11 @@ None. `zod`, `server-only`, and Vitest are already installed. Ask before adding 
 - [x] A teacher can edit an existing MCQ (200) and delete it (`{ ok: true }`)
 - [x] Missing id on get/update/delete returns 404 `Question not found`
 - [x] Invalid bodies (blank prompt, invalid `correct`, duplicate choice texts) return 400
-- [ ] `/mcqs` shows the bank, empty state, add/edit/delete, and Logout
-- [ ] Successful create/edit returns the teacher to `/mcqs`
+- [x] `/mcqs` shows the bank, empty state, add/edit/delete, and Logout
+- [x] Successful create/edit returns the teacher to `/mcqs`
 - [ ] No cookies, tokens, sessions, or author columns are introduced
-- [ ] Each implementation phase was built test-first
-- [ ] `npm test` (Vitest) passes for the whole suite (auth + MCQ)
+- [x] Each implementation phase was built test-first
+- [x] `npm test` (Vitest) passes for the whole suite (auth + MCQ)
 - [ ] `npm run lint` and `npm run build` succeed
 
 ---
@@ -701,7 +701,7 @@ When working with this PRD:
 
 1. Read Problem, Hypothesis, and Scope (In/Out/Cut) before writing code
 2. **TDD is mandatory** for Phases 1–4: listed tests, `npm test` (red), implement, `npm test` (green)
-3. Implement **only the current phase**. Phase 3 HTTP is done. Phase 4 is UI only — do not add Server Actions, sessions, or author columns.
+3. Implement **only the current phase**. Phase 4 is done (Server Actions + UI). Phase 5 is verify only — lint/build/browser; do not add features.
 4. Update phase status markers and this Current Status section as work progresses
 5. Add implementation details under Technical Implementation Details as code is written (filenames, commit hashes)
 6. Mark acceptance criteria as complete when features work
@@ -714,31 +714,30 @@ When working with this PRD:
 13. Do not change auth hashing, `users`, or `/api/auth/*`
 14. Follow `.cursor/skills/testing/SKILL.md`, `.cursor/rules/d1.mdc`, `.cursor/rules/auth.mdc`, and `.cursor/rules/nextjs.mdc`
 15. Windows: `npm.cmd` / `npx.cmd`
-16. After each phase, stop for review if the user asked to review each phase. Phase 3 is complete; wait before Phase 4.
+16. After each phase, stop for review if the user asked to review each phase. Phase 4 is complete; wait before Phase 5.
 
 ---
 
 ## Current Status
 
 **Last Updated:** 2026-09-10
-**Current Phase:** Phase 3 - MCQ HTTP endpoints
+**Current Phase:** Phase 4 - Server Actions and MCQ UI
 **Status:** COMPLETED
-**Next Steps:** Phase 4 — replace the `/mcqs` stub with list/create/edit/delete UI. Do not start Phase 4 until asked. Do not add Server Actions or sessions.
+**Next Steps:** Phase 5 — verify (`npm test`, lint, build, browser). Do not start Phase 5 until asked. Do not add sessions.
 
-**Phase 3 evidence**
-- Red: `route.test.ts` files failed to resolve `./route`
-- Green: `npm test` — 13 files, **76 passed** (exit 0)
-- `npm run lint` — exit 0
+**Phase 4 evidence**
+- Red: `actions.test.ts` failed to resolve `./actions`
+- Green: `npm test` — 16 files, **102 passed** (exit 0)
+- `npm run lint` — exit 0 (list/form load on the server to avoid `setState` in `useEffect`)
 - No new dependencies
-- `/mcqs` is still the auth stub (UI is Phase 4)
 
-**Phase 3 mapping of the generic “service layer” prompt**
+**Phase 4 mapping of the “Server Actions” prompt**
 
 | Prompt item | As-built |
 |-------------|----------|
-| Creation / retrieval / listing / update / delete | `POST`/`GET`/`PUT`/`DELETE` JSON routes calling the Phase 2 service |
-| Layering | Client `fetch` → App Router `route.ts` → `mcq-service` → D1 (not Server Actions) |
-| Ownership checks | None — shared ungated bank (PRD cut) |
-| Choice replacement / repositioning | Full replace of A–D + `correct` on PUT; no child choice rows |
-| Cascade deletion | N/A — deleting the MCQ row is the whole record |
-| Server-side attempt correctness | Out of scope — no quiz-taking / attempts table |
+| Layering | Client UI → `src/app/mcqs/actions.ts` → `mcq-service` → D1 |
+| Zod | `mcqInputSchema` / `mcqIdSchema` in the actions before the service |
+| Ownership checks | None — shared ungated bank (no session) |
+| Success / error | `{ ok: true, … }` or `{ ok: false, error }` (`Validation failed`, `Question not found`, `Server error`) |
+| Server-side correctness | `correct` is A–D, unique choices; service CHECK is last-resort |
+| Actions must not access DB | Actions import the service only; no `getCloudflareContext` |

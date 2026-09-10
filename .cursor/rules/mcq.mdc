@@ -1,0 +1,33 @@
+---
+description: MCQ bank conventions — shared questions, Server Actions, no sessions
+globs: src/app/mcqs/**,src/app/api/mcqs/**,src/lib/mcq-schemas.ts,src/lib/services/mcq-service.ts,src/components/mcq-*.tsx
+alwaysApply: false
+---
+
+# MCQ bank
+
+Source of truth: `ai-workspace/mcq-crud-prd.md`. Shared ungated four-choice
+questions. Do not add cookies, JWT, sessions, author columns, or route guards
+unless a new PRD asks for them.
+
+## Layering
+
+```
+McqList / McqForm   ('use client')
+  Server Actions    src/app/mcqs/actions.ts
+    Zod             src/lib/mcq-schemas.ts
+      mcq-service   src/lib/services/mcq-service.ts
+        D1          getCloudflareContext({ async: true })
+```
+
+JSON route handlers under `src/app/api/mcqs/` remain for the HTTP contract.
+UI mutations go through Server Actions. Actions must not use `env.DB`.
+
+## Validation
+
+`mcqInputSchema`: trimmed prompt (1–2000), choices A–D (1–500, pairwise
+distinct), `correct` A/B/C/D. Missing id → `Question not found`.
+
+## Public shape
+
+`{ id, prompt, choiceA, choiceB, choiceC, choiceD, correct, createdAt, updatedAt }`

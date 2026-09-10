@@ -1,21 +1,9 @@
 import "server-only";
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { mcqInputSchema, type McqInput } from "@/lib/mcq-schemas";
+import { mcqInputSchema, type McqInput, type PublicMcq } from "@/lib/mcq-schemas";
 
-export type { McqInput };
-
-export type PublicMcq = {
-	id: string;
-	prompt: string;
-	choiceA: string;
-	choiceB: string;
-	choiceC: string;
-	choiceD: string;
-	correct: McqInput["correct"];
-	createdAt: string;
-	updatedAt: string;
-};
+export type { McqInput, PublicMcq };
 
 export class McqNotFoundError extends Error {
 	constructor(message = "Question not found") {

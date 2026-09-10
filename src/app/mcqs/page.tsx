@@ -1,21 +1,28 @@
 import { LogoutButton } from "@/components/logout-button";
+import { McqList } from "@/components/mcq-list";
+import { listMcqsAction } from "@/app/mcqs/actions";
 
-export default function McqsPage() {
+export default async function McqsPage() {
+	const result = await listMcqsAction();
+	const initialMcqs = result.ok ? result.mcqs : [];
+	const initialError = result.ok ? null : result.error;
+
 	return (
-		<main className="mx-auto flex min-h-svh w-full max-w-2xl flex-col gap-6 p-6 md:p-10">
+		<main className="mx-auto flex min-h-svh w-full max-w-4xl flex-col gap-6 p-6 md:p-10">
 			<div className="flex items-start justify-between gap-4">
 				<div className="flex flex-col gap-2">
 					<h1 className="font-heading text-2xl font-medium">
-						Multiple-choice questions
+						Shared multiple-choice question bank
 					</h1>
 					<p className="text-muted-foreground">
-						This is where teachers will build a shared bank of
-						multiple-choice questions. That workflow is coming in a later
-						sprint.
+						Teachers collaborate here on a shared bank of four-choice
+						questions. Anyone with this page can add, edit, or remove
+						questions — there is no per-teacher ownership yet.
 					</p>
 				</div>
 				<LogoutButton />
 			</div>
+			<McqList initialMcqs={initialMcqs} initialError={initialError} />
 		</main>
 	);
 }
